@@ -10,7 +10,12 @@ import {
 } from "./config";
 import { API_URL, REQUEST_ALTERNATIVES } from "./const";
 import { createErrorResponse } from "./errorHandler";
-import { generateBrowserFingerprint, selectProxy } from "./proxyManager";
+import {
+  generateBrowserFingerprint,
+  recordProxyFailure,
+  recordProxySuccess,
+  selectProxy,
+} from "./proxyManager";
 import { checkCombinedRateLimit } from "./rateLimit";
 import { isRetryableError, RetryOptions, retryWithBackoff } from "./retryLogic";
 import {
@@ -321,6 +326,7 @@ async function query(
       const makeRequest = async () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+        const requestStartTime = Date.now();
 
         try {
           const requestBody = buildRequestBody(params);
@@ -348,6 +354,11 @@ async function query(
           });
 
           clearTimeout(timeoutId);
+
+          // Record successful proxy response time
+          if (proxy) {
+            recordProxySuccess(endpoint, Date.now() - requestStartTime);
+          }
 
           // If we get a 400 error, log the request body for debugging
           if (!response.ok && response.status === 400) {
@@ -383,6 +394,12 @@ async function query(
           return response;
         } catch (error) {
           clearTimeout(timeoutId);
+
+          // Record proxy failure
+          if (proxy) {
+            recordProxyFailure(endpoint);
+          }
+
           if (error instanceof Error && error.name === "AbortError") {
             const timeoutError = new Error(
               `Request timeout after ${

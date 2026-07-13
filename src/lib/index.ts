@@ -9,7 +9,14 @@ import { query } from "./query";
 export * from "./cache";
 export * from "./circuitBreaker";
 export * from "./errorHandler";
-export * from "./proxyManager";
+export {
+  getProxyEndpoints,
+  selectProxy,
+  generateBrowserFingerprint,
+  recordProxySuccess,
+  recordProxyFailure,
+  getProxyHealthStats,
+} from "./proxyManager";
 export * from "./rateLimit";
 export * from "./retryLogic";
 export * from "./textUtils";

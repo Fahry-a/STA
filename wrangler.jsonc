@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "account_id": "07c56e0dc4b3b1597495aa78fe7ebbf8",
+  "account_id": "2ec2e8ff2ebc31a2db2cb400d5b08a4e",
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS"
@@ -10,13 +10,11 @@
   "kv_namespaces": [
     {
       "binding": "CACHE_KV",
-      "id": "4d5895d8716247f486493b93edbc5fe9",
-      "preview_id": "e9e499fe006e4879a0668e792fe2dd15"
+      "id": "9b17a4f5a9074c13a7d3796a9170b74d"
     },
     {
       "binding": "RATE_LIMIT_KV",
-      "id": "07147ca64a4c48fe952f62afe469bb44",
-      "preview_id": "bbed039364e5488e8ed58701c3ee5da5"
+      "id": "78b21a8a40a54d888582ef576ef9354f"
     }
   ],
   "main": "src/index.ts",
@@ -44,7 +42,13 @@
   },
   "vars": {
     "DEBUG_MODE": "false",
-    "PROXY_URLS": "https://0.xdpl.xixu.dpdns.org/jsonrpc,https://1.xdpl.xixu.dpdns.org/jsonrpc,https://2.xdpl.xixu.dpdns.org/jsonrpc,https://3.xdpl.xixu.dpdns.org/jsonrpc,https://4.xdpl.xixu.dpdns.org/jsonrpc,https://5.xdpl.xixu.dpdns.org/jsonrpc,https://6.xdpl.xixu.dpdns.org/jsonrpc,https://7.xdpl.xixu.dpdns.org/jsonrpc,https://8.xdpl.xixu.dpdns.org/jsonrpc,https://9.xdpl.xixu.dpdns.org/jsonrpc"
+    "PROXY_URLS": "https://proxy0.deeplx.oryn.my.id/jsonrpc,https://proxy1.deeplx.oryn.my.id/jsonrpc,https://proxy2.deeplx.oryn.my.id/jsonrpc,https://proxy3.deeplx.oryn.my.id/jsonrpc,https://proxy4.deeplx.oryn.my.id/jsonrpc,https://proxy5.deeplx.oryn.my.id/jsonrpc,https://proxy6.deeplx.oryn.my.id/jsonrpc,https://proxy7.deeplx.oryn.my.id/jsonrpc,https://proxy8.deeplx.oryn.my.id/jsonrpc,https://proxy9.deeplx.oryn.my.id/jsonrpc,https://proxy10.deeplx.oryn.my.id/jsonrpc,https://proxy11.deeplx.oryn.my.id/jsonrpc,https://proxy12.deeplx.oryn.my.id/jsonrpc,https://proxy13.deeplx.oryn.my.id/jsonrpc,https://proxy14.deeplx.oryn.my.id/jsonrpc,https://proxy15.deeplx.oryn.my.id/jsonrpc,https://proxy16.deeplx.oryn.my.id/jsonrpc,https://proxy17.deeplx.oryn.my.id/jsonrpc,https://proxy18.deeplx.oryn.my.id/jsonrpc,https://proxy19.deeplx.oryn.my.id/jsonrpc,https://proxy20.deeplx.oryn.my.id/jsonrpc"
   },
-  "workers_dev": false
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "deeplx.oryn.my.id",
+      "custom_domain": true
+    }
+  ]
 }
