@@ -3,7 +3,8 @@
   "account_id": "2ec2e8ff2ebc31a2db2cb400d5b08a4e",
   "analytics_engine_datasets": [
     {
-      "binding": "ANALYTICS"
+      "binding": "ANALYTICS",
+      "dataset": "deeplx-analytics"
     }
   ],
   "compatibility_date": "2025-07-19",
@@ -20,7 +21,7 @@
   "main": "src/index.ts",
   "name": "deeplx",
   "observability": {
-    "enabled": false,
+    "enabled": true,
     "head_sampling_rate": 1,
     "logs": {
       "enabled": true,
