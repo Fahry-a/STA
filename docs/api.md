@@ -104,7 +104,7 @@ Check service health status.
 ```
 
 ### GET /metrics
-Get performance metrics (may require authentication).
+Get performance metrics. Requires `X-API-Key` header.
 
 **Response:**
 ```json

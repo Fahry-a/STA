@@ -487,10 +487,16 @@ app
   })
 
   /**
-   * Metrics endpoint
+   * Metrics endpoint (protected by API key)
    * GET /metrics - Service performance and operational metrics
    */
   .get("/metrics", (c) => {
+    // Require admin API key to prevent exposing operational details publicly
+    const apiKey = c.req.header("X-API-Key");
+    if (!apiKey || apiKey !== c.env.ADMIN_API_KEY) {
+      return c.json({ code: 401, message: "Unauthorized" }, 401);
+    }
+
     const env = c.env;
     const metrics = collectMetrics(env);
     return c.json(formatMetricsResponse(metrics));

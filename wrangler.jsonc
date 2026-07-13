@@ -43,7 +43,6 @@
   },
   "vars": {
     "DEBUG_MODE": "false",
-    "ADMIN_API_KEY": "25fb6b63ddb423c8a4f9c8bf04f2e06bd2621491d470f0806804d44a0e560880",
     "PROXY_URLS": "https://proxy0.deeplx.oryn.my.id/jsonrpc,https://proxy1.deeplx.oryn.my.id/jsonrpc,https://proxy2.deeplx.oryn.my.id/jsonrpc,https://proxy3.deeplx.oryn.my.id/jsonrpc,https://proxy4.deeplx.oryn.my.id/jsonrpc,https://proxy5.deeplx.oryn.my.id/jsonrpc,https://proxy6.deeplx.oryn.my.id/jsonrpc,https://proxy7.deeplx.oryn.my.id/jsonrpc,https://proxy8.deeplx.oryn.my.id/jsonrpc,https://proxy9.deeplx.oryn.my.id/jsonrpc,https://proxy10.deeplx.oryn.my.id/jsonrpc,https://proxy11.deeplx.oryn.my.id/jsonrpc,https://proxy12.deeplx.oryn.my.id/jsonrpc,https://proxy13.deeplx.oryn.my.id/jsonrpc,https://proxy14.deeplx.oryn.my.id/jsonrpc,https://proxy15.deeplx.oryn.my.id/jsonrpc,https://proxy16.deeplx.oryn.my.id/jsonrpc,https://proxy17.deeplx.oryn.my.id/jsonrpc,https://proxy18.deeplx.oryn.my.id/jsonrpc,https://proxy19.deeplx.oryn.my.id/jsonrpc,https://proxy20.deeplx.oryn.my.id/jsonrpc"
   },
   "workers_dev": false,

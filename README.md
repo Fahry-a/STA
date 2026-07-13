@@ -191,7 +191,7 @@ graph TB
 | `/google` | POST | Translate with Google |
 | `/v2/translate` | POST | Batch translation (APR support) |
 | `/health` | GET | Health check |
-| `/metrics` | GET | Performance metrics |
+| `/metrics` | GET | Performance metrics (auth required) |
 | `/admin/warm-cache` | POST | Trigger cache warming (auth required) |
 | `/admin/cache-status` | GET | Cache warming status (auth required) |
 
