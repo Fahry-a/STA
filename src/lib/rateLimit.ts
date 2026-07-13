@@ -1,10 +1,15 @@
 /**
  * Token bucket rate limiting implementation for client IP and proxy management
  * Provides comprehensive rate limiting with two-level caching for optimal performance
+ * Integrates sliding window rate limiter for burst protection at window boundaries
  */
 
 import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
 import { getProxyEndpoints } from "./proxyManager";
+import {
+  checkSlidingWindowRateLimit,
+  getRateLimitHeaders,
+} from "./slidingWindowRateLimit";
 
 // Import types from worker-configuration for consistency
 interface Env {
@@ -14,6 +19,9 @@ interface Env {
   PROXY_URLS?: string;
   PROXY_WEIGHTS?: string;
 }
+
+// Re-export sliding window utilities for consumers of this module
+export { getRateLimitHeaders, checkSlidingWindowRateLimit };
 
 interface RateLimitEntry {
   tokens: number;
@@ -84,6 +92,12 @@ export async function checkRateLimit(
   const now = Date.now();
 
   try {
+    // Sliding window pre-check for fast in-memory burst protection
+    const slidingResult = checkSlidingWindowRateLimit(key, env);
+    if (!slidingResult.allowed) {
+      return false;
+    }
+
     const rateLimits = getDynamicRateLimits(env);
     const maxTokens = rateLimits.TOKENS_PER_MINUTE;
 

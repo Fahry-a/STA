@@ -100,6 +100,51 @@ export function createStandardResponse(
 }
 
 /**
+ * V2 Batch translation request parameters
+ */
+export type V2RequestParams = {
+  text: string[];
+  APR?: boolean; // Array Per Request (default: true)
+  source_lang?: SourceLang;
+  target_lang: TargetLang;
+};
+
+/**
+ * V2 Batch translation response
+ */
+export type V2ResponseParams = {
+  code: number;
+  data: V2TranslationResult[];
+  id: number;
+};
+
+/**
+ * Individual translation result in batch
+ */
+export type V2TranslationResult = {
+  text: string;
+  index: number;
+  detected_source_lang?: string;
+  success: boolean;
+  error?: string;
+};
+
+/**
+ * Create standardized V2 response format
+ */
+export function createV2Response(
+  code: number,
+  data: V2TranslationResult[],
+  id?: number
+): V2ResponseParams {
+  return {
+    code,
+    data,
+    id: id ?? Math.floor(Math.random() * 10000000000),
+  };
+}
+
+/**
  * Note: The following interfaces are defined globally in worker-configuration.d.ts:
  * - ProxyEndpoint: Proxy endpoint configuration
  * - CacheEntry: Cache entry structure

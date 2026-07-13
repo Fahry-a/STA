@@ -1,0 +1,375 @@
+openapi: 3.0.3
+info:
+  title: DeepLX API
+  version: 1.0.0
+  description: |
+    Free translation API powered by DeepL and Google Translate.
+    No API keys required for translation endpoints.
+  contact:
+    name: DeepLX
+    url: https://github.com/xixu-me/DeepLX
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://deeplx.oryn.my.id
+    description: Production server
+
+paths:
+  /deepl:
+    post:
+      summary: Translate text using DeepL
+      description: |
+        High-quality translation using DeepL's neural machine translation.
+        Supports 27+ languages with auto-detection.
+      tags: [Translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationRequest'
+            examples:
+              basic:
+                summary: Basic translation
+                value:
+                  text: "Hello, world!"
+                  source_lang: "EN"
+                  target_lang: "ZH"
+              auto_detect:
+                summary: Auto-detect source language
+                value:
+                  text: "Bonjour le monde"
+                  target_lang: "EN"
+      responses:
+        '200':
+          description: Successful translation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Maximum requests per minute
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Remaining requests in current window
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Seconds until rate limit resets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /google:
+    post:
+      summary: Translate text using Google Translate
+      description: |
+        Wide language support using Google Translate.
+        Fast processing with extensive language coverage.
+      tags: [Translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationRequest'
+      responses:
+        '200':
+          description: Successful translation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+
+  /v2/translate:
+    post:
+      summary: Batch translate text using DeepL
+      description: |
+        Batch translation endpoint with APR (Array Per Request) support.
+        - APR=true (default): Each array item is sent as a separate DeepL request (max 10 items, 5000 chars each).
+        - APR=false: All array items are combined into a single request with newline separators (5000 chars total).
+      tags: [Translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/V2TranslationRequest'
+            examples:
+              apr_true:
+                summary: Separate requests per item (APR=true)
+                value:
+                  text: ["Hello", "World", "Goodbye"]
+                  APR: true
+                  target_lang: "DE"
+              apr_false:
+                summary: Combined request (APR=false)
+                value:
+                  text: ["Hello", "World", "Goodbye"]
+                  APR: false
+                  target_lang: "DE"
+      responses:
+        '200':
+          description: All translations successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+        '207':
+          description: Partial success (some translations failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+
+  /health:
+    get:
+      summary: Service health check
+      description: Returns comprehensive health status of all service components
+      tags: [Monitoring]
+      responses:
+        '200':
+          description: Service is healthy or degraded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /metrics:
+    get:
+      summary: Service metrics
+      description: Returns performance and operational metrics
+      tags: [Monitoring]
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+components:
+  schemas:
+    TranslationRequest:
+      type: object
+      required: [text, target_lang]
+      properties:
+        text:
+          type: string
+          maxLength: 5000
+          description: Text to translate
+          example: "Hello, world!"
+        source_lang:
+          type: string
+          minLength: 2
+          maxLength: 5
+          description: Source language code (ISO 639-1/639-2)
+          example: "EN"
+        target_lang:
+          type: string
+          minLength: 2
+          maxLength: 5
+          description: Target language code (ISO 639-1/639-2)
+          example: "ZH"
+
+    TranslationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+          example: 200
+        data:
+          type: string
+          nullable: true
+          description: Translated text
+          example: "你好，世界！"
+        id:
+          type: integer
+          description: Unique request identifier
+          example: 1234567890
+        source_lang:
+          type: string
+          nullable: true
+          description: Detected or specified source language
+          example: "EN"
+        target_lang:
+          type: string
+          nullable: true
+          description: Target language
+          example: "ZH"
+
+    V2TranslationRequest:
+      type: object
+      required: [text, target_lang]
+      properties:
+        text:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+          description: Array of texts to translate
+          example: ["Hello", "World"]
+        APR:
+          type: boolean
+          default: true
+          description: Array Per Request - true sends each item separately, false combines all items
+        source_lang:
+          type: string
+          description: Source language code
+          example: "EN"
+        target_lang:
+          type: string
+          description: Target language code
+          example: "DE"
+
+    V2TranslationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: HTTP status code (200, 207 for partial, 400, 429, 500)
+          example: 200
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+                description: Translated text
+              index:
+                type: integer
+                description: Index in original request array
+              detected_source_lang:
+                type: string
+                nullable: true
+                description: Detected source language (APR=true only)
+              success:
+                type: boolean
+                description: Whether this individual translation succeeded
+              error:
+                type: string
+                nullable: true
+                description: Error message if translation failed
+        id:
+          type: integer
+          description: Unique request identifier
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 400
+        data:
+          type: string
+          nullable: true
+        id:
+          type: integer
+        source_lang:
+          type: string
+          nullable: true
+        target_lang:
+          type: string
+          nullable: true
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        checks:
+          type: object
+          properties:
+            proxies:
+              $ref: '#/components/schemas/HealthCheckItem'
+            cache:
+              $ref: '#/components/schemas/HealthCheckItem'
+            rateLimit:
+              $ref: '#/components/schemas/HealthCheckItem'
+            performance:
+              $ref: '#/components/schemas/HealthCheckItem'
+
+    HealthCheckItem:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        message:
+          type: string
+        details:
+          type: object
+
+    MetricsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        data:
+          type: object
+          properties:
+            timestamp:
+              type: string
+            uptime:
+              type: integer
+            performance:
+              type: object
+            proxy:
+              type: object
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Admin API key for protected endpoints
+
+tags:
+  - name: Translation
+    description: Translation endpoints
+  - name: Monitoring
+    description: Health and metrics endpoints

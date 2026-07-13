@@ -20,6 +20,9 @@ interface Env {
 
   /** Enables the /debug endpoint only when set to an explicit truthy value */
   DEBUG_MODE?: string;
+
+  /** Admin API key for protected endpoints (/admin/*) */
+  ADMIN_API_KEY?: string;
 }
 
 /**

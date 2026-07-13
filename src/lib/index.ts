@@ -9,6 +9,13 @@ import { query } from "./query";
 export * from "./cache";
 export * from "./circuitBreaker";
 export * from "./errorHandler";
+export * from "./logger";
+export * from "./metrics";
+export * from "./healthCheck";
+export * from "./cacheWarmer";
+export * from "./slidingWindowRateLimit";
+export * from "./v2Validation";
+export * from "./v2Translate";
 export {
   getProxyEndpoints,
   selectProxy,

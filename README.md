@@ -178,6 +178,23 @@ graph TB
 
 ## Quick Start
 
+### API Documentation
+
+- [API Reference](docs/api.md) - Detailed endpoint documentation
+- [OpenAPI Specification](docs/openapi.yaml) - Machine-readable API spec
+
+### Quick Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/deepl` | POST | Translate with DeepL |
+| `/google` | POST | Translate with Google |
+| `/v2/translate` | POST | Batch translation (APR support) |
+| `/health` | GET | Health check |
+| `/metrics` | GET | Performance metrics |
+| `/admin/warm-cache` | POST | Trigger cache warming (auth required) |
+| `/admin/cache-status` | GET | Cache warming status (auth required) |
+
 ### cURL Examples
 
 #### DeepL Translation (Recommended)
