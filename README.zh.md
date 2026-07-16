@@ -1,4 +1,6 @@
-# DeepLX
+# STA
+
+> Serverless Translation API（基于 [xixu-me/DeepLX](https://github.com/xixu-me/DeepLX) 的分支，已重命名并加固以用于生产环境）。
 
 ***[English](README.md)***
 
@@ -171,10 +173,10 @@ graph TB
 
 ## 在线服务
 
-> [!WARNING]
-> 预部署实例因请求过多已暂时停止服务。请[自行部署](#self-deployment)以继续使用。
+**在线实例**：`https://sta.oryn.my.id`
 
-~~**预部署实例**：`https://dplx.xi-xu.me`~~ （暂时停止）
+> [!NOTE]
+> 此为 `wrangler.jsonc` 中配置的自定义域名。您也可以选择[自行部署](#self-deployment)属于自己的实例。
 
 ## 快速开始
 
@@ -183,7 +185,7 @@ graph TB
 #### DeepL 翻译（推荐）
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/deepl \
+curl -X POST https://sta.oryn.my.id/deepl \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -195,7 +197,7 @@ curl -X POST https://dplx.xi-xu.me/deepl \
 #### Google 翻译
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/google \
+curl -X POST https://sta.oryn.my.id/google \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -207,7 +209,7 @@ curl -X POST https://dplx.xi-xu.me/google \
 #### 传统端点（DeepL）
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/translate \
+curl -X POST https://sta.oryn.my.id/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -222,7 +224,7 @@ curl -X POST https://dplx.xi-xu.me/translate \
 
 ```javascript
 async function translateWithDeepL(text, sourceLang = 'auto', targetLang = 'zh') {
-  const response = await fetch('https://dplx.xi-xu.me/deepl', {
+  const response = await fetch('https://sta.oryn.my.id/deepl', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -248,7 +250,7 @@ translateWithDeepL('Hello, world!', 'en', 'zh')
 
 ```javascript
 async function translateWithGoogle(text, sourceLang = 'auto', targetLang = 'zh') {
-  const response = await fetch('https://dplx.xi-xu.me/google', {
+  const response = await fetch('https://sta.oryn.my.id/google', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -279,7 +281,7 @@ import requests
 import json
 
 def translate_with_deepl(text, source_lang='auto', target_lang='zh'):
-    url = 'https://dplx.xi-xu.me/deepl'
+    url = 'https://sta.oryn.my.id/deepl'
     data = {
         'text': text,
         'source_lang': source_lang,
@@ -309,7 +311,7 @@ import requests
 import json
 
 def translate_with_google(text, source_lang='auto', target_lang='zh'):
-    url = 'https://dplx.xi-xu.me/google'
+    url = 'https://sta.oryn.my.id/google'
     data = {
         'text': text,
         'source_lang': source_lang,
@@ -352,14 +354,14 @@ except Exception as e:
 
 1. [下载并安装适用于您平台的 Pot](https://github.com/pot-app/pot-desktop/releases/latest)
 2. 打开 Pot 设置并导航到服务设置
-3. 将 DeepL 服务类型配置为 DeepLX，并将自定义 URL 配置为 `https://dplx.xi-xu.me/deepl`
+3. 将 DeepL 服务类型配置为 DeepLX，并将自定义 URL 配置为 `https://sta.oryn.my.id/deepl`
 
 ### [Zotero](https://www.zotero.org/)（开源文献管理应用）
 
 1. [下载并安装适用于您平台的 Zotero](https://www.zotero.org/download/)
 2. 下载并安装 [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate) 插件
 3. 打开 Zotero 设置并导航到翻译中的服务部分
-4. 将翻译服务配置为 DeepLX（API），并点击配置按钮后将接口配置为 `https://dplx.xi-xu.me/deepl`
+4. 将翻译服务配置为 DeepLX（API），并点击配置按钮后将接口配置为 `https://sta.oryn.my.id/deepl`
 
 ### [PDFMathTranslate（pdf2zh）](https://github.com/Byaidu/PDFMathTranslate)（开源 PDF 文档翻译工具）
 
@@ -369,18 +371,18 @@ except Exception as e:
 
 1. [安装沉浸式翻译](https://immersivetranslate.com/zh-Hans/download/)
 2. 进入开发者设置并开启 beta 测试特性
-3. 进入翻译服务添加自定义翻译服务 DeepLX，将 API URL 配置为 `https://dplx.xi-xu.me/deepl`
+3. 进入翻译服务添加自定义翻译服务 DeepLX，将 API URL 配置为 `https://sta.oryn.my.id/deepl`
 4. 将每秒最大请求数和每次请求最大文本长度配置为合适的值（例如 `80` 和 `5000`），以确保稳定性和性能
 
 ### [Bob](https://bobtranslate.com/)（闭源 macOS 应用）
 
 1. [从 Mac App Store 下载并安装 Bob](https://apps.apple.com/cn/app/id1630034110)
 2. 下载并安装 [bob-plugin-deeplx](https://github.com/missuo/bob-plugin-deeplx) 插件
-3. 配置插件使用 `https://dplx.xi-xu.me/deepl`
+3. 配置插件使用 `https://sta.oryn.my.id/deepl`
 
 ## 自部署
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/xixu-me/DeepLX)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Fahry-a/STA)
 
 ### 前置要求
 
@@ -391,7 +393,7 @@ except Exception as e:
 ### 1. 克隆存储库
 
 ```bash
-git clone https://github.com/xixu-me/DeepLX.git
+git clone https://github.com/Fahry-a/STA.git
 cd DeepLX
 ```
 
@@ -727,7 +729,7 @@ curl -X POST https://your-domain.workers.dev/debug \
 
 我们欢迎各种形式的贡献！请查看[贡献指南](CONTRIBUTING.md)了解如何参与存储库开发。
 
-1. **报告问题**: 使用 [issue 模板](https://github.com/xixu-me/DeepLX/issues/new/choose)报告 bug 或提出功能请求
+1. **报告问题**: 使用 [issue 模板](https://github.com/Fahry-a/STA/issues/new/choose)报告 bug 或提出功能请求
 2. **提交代码**: fork 存储库，创建功能分支，提交 pull request
 3. **改进文档**: 修正错误、添加示例、完善说明
 4. **测试反馈**: 在不同环境下测试并提供反馈
@@ -736,19 +738,17 @@ curl -X POST https://your-domain.workers.dev/debug \
 
 ### Star 历史
 
-<a href="https://www.star-history.com/#xixu-me/DeepLX&Date">
+<a href="https://www.star-history.com/#Fahry-a/STA&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date" />
  </picture>
 </a>
 
 ### 联系方式
 
-- **作者**: [Xi Xu](https://xi-xu.me)
-- **邮箱**: [联系邮箱](mailto:i@xi-xu.me)
-- **赞助**: [赞助链接](https://xi-xu.me/#sponsorships)
+- **作者**: [Fahry-a](https://github.com/Fahry-a)
 
 ### 免责声明
 
@@ -787,6 +787,6 @@ curl -X POST https://your-domain.workers.dev/debug \
 
 **如果这个存储库对您有帮助，请考虑给它一个 ⭐ star！**
 
-Made with ❤️ by [Xi Xu](https://xi-xu.me)
+Made with ❤️ by [Fahry-a](https://github.com/Fahry-a)
 
 </div>
