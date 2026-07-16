@@ -1,8 +1,8 @@
-# DeepLX API Documentation
+# STA API Documentation
 
 ## Base URL
 ```
-https://deeplx.oryn.my.id
+https://sta.oryn.my.id
 ```
 
 ## Authentication

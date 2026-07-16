@@ -1,6 +1,6 @@
 /**
  * Google Translate integration service
- * Provides Google Translate functionality with DeepLX-compatible API format
+ * Provides Google Translate functionality with an STA-compatible API format
  */
 
 import { createErrorResponse } from "../errorHandler";
@@ -18,7 +18,7 @@ type GoogleTranslateBody = [GoogleTranslateSegment[]?, unknown?, string?];
  * Translate text using Google Translate API
  * @param params - Translation parameters (text, source_lang, target_lang)
  * @param config - Configuration options
- * @returns Translation response in DeepLX format
+ * @returns Translation response in STA format
  */
 export async function translateWithGoogle(
   params: RequestParams,
@@ -78,7 +78,7 @@ export async function translateWithGoogle(
       throw new Error("No translation result received from Google Translate");
     }
 
-    // Format the response to match the DeepLX API
+    // Format the response to match the STA API
     const detectedSourceLang =
       typeof googleResponseBody?.[2] === "string"
         ? googleResponseBody[2]

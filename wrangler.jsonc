@@ -3,7 +3,7 @@
   "analytics_engine_datasets": [
     {
       "binding": "ANALYTICS",
-      "dataset": "deeplx-analytics"
+      "dataset": "sta-analytics"
     }
   ],
   "compatibility_date": "2025-07-19",
@@ -18,7 +18,7 @@
     }
   ],
   "main": "src/index.ts",
-  "name": "deeplx",
+  "name": "sta",
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,
@@ -38,16 +38,16 @@
     "mode": "smart"
   },
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/10 * * * *"]
   },
   "vars": {
     "DEBUG_MODE": "false",
-    "PROXY_URLS": "https://proxy0.deeplx.oryn.my.id/jsonrpc,https://proxy1.deeplx.oryn.my.id/jsonrpc,https://proxy2.deeplx.oryn.my.id/jsonrpc,https://proxy3.deeplx.oryn.my.id/jsonrpc,https://proxy4.deeplx.oryn.my.id/jsonrpc,https://proxy5.deeplx.oryn.my.id/jsonrpc,https://proxy6.deeplx.oryn.my.id/jsonrpc,https://proxy7.deeplx.oryn.my.id/jsonrpc,https://proxy8.deeplx.oryn.my.id/jsonrpc,https://proxy9.deeplx.oryn.my.id/jsonrpc,https://proxy10.deeplx.oryn.my.id/jsonrpc,https://proxy11.deeplx.oryn.my.id/jsonrpc,https://proxy12.deeplx.oryn.my.id/jsonrpc,https://proxy13.deeplx.oryn.my.id/jsonrpc,https://proxy14.deeplx.oryn.my.id/jsonrpc,https://proxy15.deeplx.oryn.my.id/jsonrpc,https://proxy16.deeplx.oryn.my.id/jsonrpc,https://proxy17.deeplx.oryn.my.id/jsonrpc,https://proxy18.deeplx.oryn.my.id/jsonrpc,https://proxy19.deeplx.oryn.my.id/jsonrpc,https://proxy20.deeplx.oryn.my.id/jsonrpc"
+    "PROXY_URLS": "https://proxy0.sta.oryn.my.id/jsonrpc,https://proxy1.sta.oryn.my.id/jsonrpc,https://proxy2.sta.oryn.my.id/jsonrpc,https://proxy3.sta.oryn.my.id/jsonrpc,https://proxy4.sta.oryn.my.id/jsonrpc,https://proxy5.sta.oryn.my.id/jsonrpc,https://proxy6.sta.oryn.my.id/jsonrpc,https://proxy7.sta.oryn.my.id/jsonrpc,https://proxy8.sta.oryn.my.id/jsonrpc,https://proxy9.sta.oryn.my.id/jsonrpc,https://proxy10.sta.oryn.my.id/jsonrpc,https://proxy11.sta.oryn.my.id/jsonrpc,https://proxy12.sta.oryn.my.id/jsonrpc,https://proxy13.sta.oryn.my.id/jsonrpc,https://proxy14.sta.oryn.my.id/jsonrpc,https://proxy15.sta.oryn.my.id/jsonrpc,https://proxy16.sta.oryn.my.id/jsonrpc,https://proxy17.sta.oryn.my.id/jsonrpc,https://proxy18.sta.oryn.my.id/jsonrpc,https://proxy19.sta.oryn.my.id/jsonrpc,https://proxy20.sta.oryn.my.id/jsonrpc"
   },
   "workers_dev": false,
   "routes": [
     {
-      "pattern": "deeplx.oryn.my.id",
+      "pattern": "sta.oryn.my.id",
       "custom_domain": true
     }
   ]

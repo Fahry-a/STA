@@ -1,13 +1,12 @@
 /**
- * DeepLX Library Module Exports
- * Central export file for all DeepLX library modules and utilities
+ * STA Library Module Exports
+ * Central export file for all STA library modules and utilities
  */
 
 import { query } from "./query";
 
 // Core functionality exports
 export * from "./cache";
-export * from "./circuitBreaker";
 export * from "./errorHandler";
 export * from "./logger";
 export * from "./metrics";

@@ -1,5 +1,5 @@
 /**
- * App constants for DeepLX translation service
+ * App constants for the STA (Serverless Translation API) translation service
  * Contains API endpoints, language definitions, and other immutable values
  */
 

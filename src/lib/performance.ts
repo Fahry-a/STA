@@ -1,5 +1,5 @@
 /**
- * Performance monitoring and optimization utilities for DeepLX
+ * Performance monitoring and optimization utilities for STA (Serverless Translation API)
  * Provides request tracking, metrics collection, and performance analysis
  */
 

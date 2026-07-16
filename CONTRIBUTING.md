@@ -1,6 +1,6 @@
-# Contributing to DeepLX
+# Contributing to STA
 
-Thank you for your interest in contributing to DeepLX! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to STA! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 
@@ -29,8 +29,8 @@ This repository and everyone participating in it is governed by our [Code of Con
 1. Clone your fork:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/DeepLX.git
-   cd DeepLX
+   git clone https://github.com/YOUR_USERNAME/STA.git
+   cd STA
    ```
 
 2. Install dependencies:
@@ -259,4 +259,4 @@ Contributors will be recognized in:
 - README.md contributors section
 - GitHub contributors page
 
-Thank you for contributing to DeepLX! 🚀
+Thank you for contributing to STA! 🚀

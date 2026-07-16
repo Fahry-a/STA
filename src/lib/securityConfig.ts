@@ -1,5 +1,5 @@
 /**
- * Security configuration for DeepLX API
+ * Security configuration for STA API
  * Centralizes all security-related settings and policies
  */
 

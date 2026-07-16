@@ -2,11 +2,7 @@
  * Tests for rate limiting functionality
  */
 
-import {
-  checkRateLimit,
-  delayRequest,
-  getClientIP,
-} from "../../src/lib/rateLimit";
+import { checkRateLimit, delayRequest } from "../../src/lib/rateLimit";
 
 describe("Rate Limit Module", () => {
   let mockEnv: Env;
@@ -17,32 +13,6 @@ describe("Rate Limit Module", () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  describe("getClientIP", () => {
-    it("should extract IP from CF-Connecting-IP header", () => {
-      const mockRequest = {
-        headers: new Map([["CF-Connecting-IP", "192.168.1.1"]]),
-      } as unknown as Request;
-
-      expect(getClientIP(mockRequest)).toBe("192.168.1.1");
-    });
-
-    it("should extract IP from X-Forwarded-For header", () => {
-      const mockRequest = {
-        headers: new Map([["X-Forwarded-For", "192.168.1.1, 10.0.0.1"]]),
-      } as unknown as Request;
-
-      expect(getClientIP(mockRequest)).toBe("192.168.1.1");
-    });
-
-    it('should return "unknown" when no supported IP headers are present', () => {
-      const mockRequest = {
-        headers: new Map([["X-Real-IP", "192.168.1.1"]]),
-      } as unknown as Request;
-
-      expect(getClientIP(mockRequest)).toBe("unknown");
-    });
   });
 
   describe("checkRateLimit", () => {

@@ -1,5 +1,5 @@
 name: ❓ Question
-description: Ask a question about DeepLX usage, configuration, or implementation
+description: Ask a question about STA usage, configuration, or implementation
 title: "[QUESTION] "
 labels: ["question", "needs-triage"]
 assignees: []
@@ -76,7 +76,7 @@ body:
       label: Current Setup
       description: Describe your current configuration and environment
       placeholder: |
-        - DeepLX version: 
+        - STA version: 
         - Environment: (Cloudflare Workers/Local/Docker)
         - Configuration details:
         - Dependencies:

@@ -1,6 +1,12 @@
 /**
- * Core translation query functionality for DeepLX API
- * Handles communication with DeepL API endpoints with retry logic and rate limiting
+ * Core translation query functionality for STA API
+ * Handles communication with DeepL API endpoints with retry logic.
+ *
+ * Rate limiting is intentionally NOT enforced here. Callers (the HTTP handlers
+ * in index.ts and the batch handler in v2Translate.ts) check rate limits at
+ * their entry points so a normal request is charged exactly once. Keeping
+ * query() pure avoids accidental double-charging and keeps it usable from
+ * internal callers such as the cache warmer without re-checking client limits.
  */
 
 import {
@@ -16,7 +22,6 @@ import {
   recordProxySuccess,
   selectProxy,
 } from "./proxyManager";
-import { checkCombinedRateLimit } from "./rateLimit";
 import { isRetryableError, RetryOptions, retryWithBackoff } from "./retryLogic";
 import {
   Config,
@@ -304,23 +309,11 @@ async function query(
       const proxy = config?.env ? await selectProxy(config.env) : null;
       const endpoint = config?.proxyEndpoint ?? proxy?.url ?? API_URL;
 
-      // Use comprehensive rate limit check - includes client and proxy backend limits
-      if (config?.env) {
-        const clientIP = config?.clientIP || "unknown";
-        const rateLimitResult = await checkCombinedRateLimit(
-          clientIP,
-          endpoint,
-          config.env
-        );
-        if (!rateLimitResult.allowed) {
-          const error = new Error(
-            rateLimitResult.reason || "Rate limit exceeded"
-          );
-          (error as any).code = 429;
-          throw error;
-        }
-      }
-
+      // Browser fingerprint rotation (User-Agent / Accept-Language). Previously
+      // generated and then discarded: the headers below hardcoded a single UA
+      // and the spread of `fingerprint` was commented out, so all requests
+      // shared one fingerprint. We now let the rotating fingerprint supply the
+      // UA and Accept-Language while keeping the browser-like security headers.
       const fingerprint = generateBrowserFingerprint();
 
       const makeRequest = async () => {
@@ -334,9 +327,10 @@ async function query(
           const response = await fetch(endpoint, {
             headers: {
               "Content-Type": "application/json",
-              Accept: "*/*",
-              "Accept-Language": "en-US,en;q=0.9",
-              "Accept-Encoding": "gzip, deflate, br, zstd",
+              Accept: fingerprint.Accept ?? "*/*",
+              "Accept-Language":
+                fingerprint["Accept-Language"] ?? "en-US,en;q=0.9",
+              "Accept-Encoding": fingerprint["Accept-Encoding"] ?? "gzip, deflate, br",
               Origin: "https://www.deepl.com",
               Connection: "keep-alive",
               Referer: "https://www.deepl.com/",
@@ -344,8 +338,8 @@ async function query(
               "Sec-Fetch-Mode": "cors",
               "Sec-Fetch-Site": "same-site",
               "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0",
-              // ...fingerprint,
+                fingerprint["User-Agent"] ??
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
               ...config?.customHeader,
             },
             method: "POST",
@@ -354,11 +348,6 @@ async function query(
           });
 
           clearTimeout(timeoutId);
-
-          // Record successful proxy response time
-          if (proxy) {
-            recordProxySuccess(endpoint, Date.now() - requestStartTime);
-          }
 
           // If we get a 400 error, log the request body for debugging
           if (!response.ok && response.status === 400) {
@@ -389,6 +378,14 @@ async function query(
             const error = new Error(errorMessage);
             (error as any).status = response.status;
             throw error;
+          }
+
+          // Only count a proxy as successful once we've confirmed a 2xx
+          // response. Recording success before the .ok check caused 4xx/5xx
+          // responses to inflate success counters and keep failing proxies
+          // marked healthy, so they were never rotated out.
+          if (proxy) {
+            recordProxySuccess(endpoint, Date.now() - requestStartTime);
           }
 
           return response;

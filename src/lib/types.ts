@@ -1,5 +1,5 @@
 /**
- * Type definitions for DeepLX translation service
+ * Type definitions for the STA translation service
  * Provides comprehensive type safety for API operations and data structures
  */
 
@@ -40,7 +40,7 @@ export type RequestParams = {
 };
 
 /**
- * Standardized response parameters for DeepLX API
+ * Standardized response parameters for STA API
  * Note: Language codes in responses are always returned in uppercase when code is 200
  * When code is not 200, source_lang and target_lang are null
  */

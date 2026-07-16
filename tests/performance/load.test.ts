@@ -66,7 +66,7 @@ describe("Performance Tests", () => {
 
       const startTime = Date.now();
 
-      const cacheKey = generateCacheKey("Hello world", "EN", "ZH");
+      const cacheKey = await generateCacheKey("Hello world", "EN", "ZH");
       await getCachedTranslation(cacheKey, mockEnv);
 
       const endTime = Date.now();

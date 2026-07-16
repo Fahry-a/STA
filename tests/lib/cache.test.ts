@@ -22,26 +22,26 @@ describe("Cache Module", () => {
   });
 
   describe("generateCacheKey", () => {
-    it("should generate consistent cache keys", () => {
-      const key1 = generateCacheKey("Hello world", "EN", "ZH");
-      const key2 = generateCacheKey("Hello world", "EN", "ZH");
+    it("should generate consistent cache keys", async () => {
+      const key1 = await generateCacheKey("Hello world", "EN", "ZH");
+      const key2 = await generateCacheKey("Hello world", "EN", "ZH");
 
       expect(key1).toBe(key2);
       expect(key1).toMatch(/^cache_/);
     });
 
-    it("should generate different keys for different inputs", () => {
-      const key1 = generateCacheKey("Hello world", "EN", "ZH");
-      const key2 = generateCacheKey("Hello world", "EN", "ES");
-      const key3 = generateCacheKey("Goodbye world", "EN", "ZH");
+    it("should generate different keys for different inputs", async () => {
+      const key1 = await generateCacheKey("Hello world", "EN", "ZH");
+      const key2 = await generateCacheKey("Hello world", "EN", "ES");
+      const key3 = await generateCacheKey("Goodbye world", "EN", "ZH");
 
       expect(key1).not.toBe(key2);
       expect(key1).not.toBe(key3);
       expect(key2).not.toBe(key3);
     });
 
-    it("should handle special characters in text", () => {
-      const key = generateCacheKey("Hello, 世界! @#$%", "EN", "ZH");
+    it("should handle special characters in text", async () => {
+      const key = await generateCacheKey("Hello, 世界! @#$%", "EN", "ZH");
       expect(key).toMatch(/^cache_/);
     });
   });

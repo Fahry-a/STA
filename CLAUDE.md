@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DeepLX is a serverless translation service optimized for Cloudflare Workers. It provides a free alternative to translation APIs by proxying requests to DeepL and Google Translate services through intelligent load balancing, rate limiting, and caching mechanisms.
+STA is a serverless translation service optimized for Cloudflare Workers. It provides a free alternative to translation APIs by proxying requests to DeepL and Google Translate services through intelligent load balancing, rate limiting, and caching mechanisms.
 
 ## Development Commands
 

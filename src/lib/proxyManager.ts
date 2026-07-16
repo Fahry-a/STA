@@ -1,5 +1,5 @@
 /**
- * IP rotation and proxy management for DeepLX
+ * IP rotation and proxy management for STA
  * Handles proxy selection, browser fingerprinting, and request routing
  * Includes health tracking, response time weighting, and smart selection
  */
@@ -272,20 +272,25 @@ export function getProxyHealthStats(
 
 /**
  * Get available proxy endpoints from environment configuration
- * Parses and validates proxy URLs from environment variables
+ * Parses and validates proxy URLs from environment variables.
+ *
+ * Empty / blank entries and non-http(s) values are filtered out. The previous
+ * implementation only split on commas, so `PROXY_URLS=""` produced a single
+ * endpoint with an empty URL (which then exploded at fetch time) and a trailing
+ * comma introduced a phantom empty endpoint that participated in weighted
+ * selection. Both silently degraded the service.
  * @param env Environment bindings containing proxy configuration
- * @returns ProxyEndpoint[] - Array of available proxy endpoints
+ * @returns ProxyEndpoint[] - Array of valid proxy endpoints
  */
 export function getProxyEndpoints(env: Env): ProxyEndpoint[] {
-  // Get proxy URLs from environment variables
-  const proxyUrls = env.PROXY_URLS
-    ? env.PROXY_URLS.split(",").map((url) => url.trim())
-    : [];
+  if (!env.PROXY_URLS) {
+    return [];
+  }
 
-  // Return validated proxy endpoints
-  return proxyUrls.map((url) => ({
-    url,
-  }));
+  return env.PROXY_URLS.split(",")
+    .map((url) => url.trim())
+    .filter((url) => url.startsWith("http://") || url.startsWith("https://"))
+    .map((url) => ({ url }));
 }
 
 // ─── Browser Fingerprinting ──────────────────────────────────────────────────

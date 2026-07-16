@@ -1,5 +1,5 @@
 /**
- * Exponential backoff retry logic for DeepLX operations
+ * Exponential backoff retry logic for STA operations
  * Provides robust error handling with configurable retry strategies
  */
 

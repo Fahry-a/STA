@@ -79,7 +79,7 @@ describe("Translation Integration Tests", () => {
         "../../src/lib/cache"
       );
 
-      const cacheKey = generateCacheKey("Hello world", "EN", "ZH");
+      const cacheKey = await generateCacheKey("Hello world", "EN", "ZH");
       const result = await getCachedTranslation(cacheKey, mockEnv);
 
       expect(result).toEqual(cachedEntry);

@@ -87,19 +87,27 @@ const memoryCache = new LRUCache<CacheEntry>(MEMORY_CACHE_MAX_SIZE);
 
 /**
  * Generate a unique cache key for translation requests
- * Uses deterministic hashing to ensure consistent keys across requests
+ * Uses SHA-256 for a collision-resistant, deterministic key.
+ *
+ * The previous implementation used a 32-bit DJB-style hash (~6-7 chars,
+ * truncated to 50). With inputs up to 5000 characters that keyspace is
+ * small enough for birthday collisions, and a collision silently returns the
+ * translation of a *different* text as a cache hit — a correctness bug for a
+ * translation service. SHA-256 (256-bit) makes that negligible.
+ *
+ * Returns a Promise because crypto.subtle.digest is asynchronous.
  * @param text The text to translate
  * @param sourceLang The source language code
  * @param targetLang The target language code
+ * @param provider Optional provider name suffix
  * @returns A unique cache key string
  */
-
-export function generateCacheKey(
+export async function generateCacheKey(
   text: string,
   sourceLang: string,
   targetLang: string,
   provider?: string
-): string {
+): Promise<string> {
   // Normalize language codes to uppercase for consistent caching
   const normalizedSourceLang =
     sourceLang === "auto" ? "auto" : sourceLang.toUpperCase();
@@ -107,34 +115,13 @@ export function generateCacheKey(
   const providerSuffix = provider ? `:${provider}` : "";
   const content = `${text}:${normalizedSourceLang}:${normalizedTargetLang}${providerSuffix}`;
 
-  // Use crypto.subtle to generate a hash instead of btoa for Unicode safety
-  try {
-    // For environments that support crypto.subtle
-    const encoder = new TextEncoder();
-    const data = encoder.encode(content);
+  const data = new TextEncoder().encode(content);
+  const digestBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashHex = Array.from(new Uint8Array(digestBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 
-    // Create a simple hash using a deterministic method
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      const char = data[i];
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-
-    // Convert to positive number and then to base36 string
-    const hashStr = Math.abs(hash).toString(36);
-
-    // Add a prefix and ensure consistent length
-    return `cache_${hashStr}_${normalizedSourceLang}_${normalizedTargetLang}`.substring(
-      0,
-      50
-    );
-  } catch (error) {
-    // Fallback: use content directly with timestamp for uniqueness
-    return `cache_${content}_${normalizedSourceLang}_${normalizedTargetLang}_${
-      Date.now() % 10000
-    }`.substring(0, 50);
-  }
+  return `cache_${normalizedSourceLang}_${normalizedTargetLang}_${hashHex}`;
 }
 
 export async function getCachedTranslation(

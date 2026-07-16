@@ -1,19 +1,19 @@
 openapi: 3.0.3
 info:
-  title: DeepLX API
+  title: STA API
   version: 1.0.0
   description: |
     Free translation API powered by DeepL and Google Translate.
     No API keys required for translation endpoints.
   contact:
-    name: DeepLX
-    url: https://github.com/xixu-me/DeepLX
+    name: STA
+    url: https://github.com/Fahry-a/STA
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: https://deeplx.oryn.my.id
+  - url: https://sta.oryn.my.id
     description: Production server
 
 paths:

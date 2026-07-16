@@ -2,7 +2,7 @@
 
 ## Overview
 
-DeepLX is a serverless translation API built on Cloudflare Workers that prioritizes security through multiple layers of protection. This document outlines our security practices, vulnerability reporting procedures, and security considerations for users.
+STA is a serverless translation API built on Cloudflare Workers that prioritizes security through multiple layers of protection. This document outlines our security practices, vulnerability reporting procedures, and security considerations for users.
 
 ## Supported Versions
 
@@ -141,7 +141,7 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 #### 3. Include the following information
 
 ```
-Subject: [SECURITY] DeepLX Vulnerability Report
+Subject: [SECURITY] STA Vulnerability Report
 
 - Description of the vulnerability
 - Steps to reproduce the issue
@@ -159,7 +159,7 @@ Subject: [SECURITY] DeepLX Vulnerability Report
 
 ### 🏆 Recognition
 
-We appreciate security researchers who help improve DeepLX security:
+We appreciate security researchers who help improve STA security:
 
 - Public acknowledgment (with permission)
 - Credit in release notes
@@ -262,7 +262,7 @@ function validateTranslationRequest(params: any): boolean {
 For critical security issues requiring immediate attention:
 
 - **Email**: [i@xi-xu.me](mailto:i@xi-xu.me)
-- **Subject**: `[URGENT SECURITY] DeepLX Critical Vulnerability`
+- **Subject**: `[URGENT SECURITY] STA Critical Vulnerability`
 
 ---
 
@@ -272,7 +272,7 @@ While we implement comprehensive security measures, users should:
 
 - **Avoid Sensitive Data**: Don't translate confidential or sensitive information
 - **Monitor Usage**: Regularly review API usage patterns
-- **Keep Updated**: Use the latest version of DeepLX
+- **Keep Updated**: Use the latest version of STA
 - **Follow Best Practices**: Implement additional security measures as needed
 
 **Remember**: Security is a shared responsibility. While we provide a secure foundation, proper deployment and usage practices are essential for maintaining security.

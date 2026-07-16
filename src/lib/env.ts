@@ -1,5 +1,5 @@
 /**
- * Environment validation utilities for DeepLX
+ * Environment validation utilities for STA
  * Validates required bindings and environment variables
  */
 

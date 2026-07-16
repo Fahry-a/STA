@@ -1,5 +1,5 @@
 /**
- * Structured logging module for DeepLX
+ * Structured logging module for STA
  * Integrates with Cloudflare Analytics Engine for persistent metrics
  */
 

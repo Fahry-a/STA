@@ -1,4 +1,4 @@
-// Global type definitions for DeepLX
+// Global type definitions for STA
 
 declare global {
   interface Env {
@@ -6,7 +6,39 @@ declare global {
     RATE_LIMIT_KV: KVNamespace;
     ANALYTICS: AnalyticsEngineDataset;
     PROXY_URLS?: string;
+    /** Admin API key for protected endpoints (/metrics, /admin/*). Required at
+     * runtime: set via `wrangler secret put ADMIN_API_KEY`. When unset or empty,
+     * admin endpoints fail-closed (reject every request). */
+    ADMIN_API_KEY?: string;
     DEBUG_MODE?: string; // Added for debug endpoint control
+  }
+
+  /** Cache entry structure for translation storage. */
+  interface CacheEntry {
+    /** Translated text content */
+    data: string;
+    /** Timestamp when translation was cached */
+    timestamp: number;
+    /** Source language code (uppercase) */
+    source_lang: string;
+    /** Target language code (uppercase) */
+    target_lang: string;
+    /** Optional unique request identifier */
+    id?: number;
+  }
+
+  /** Rate limiting entry structure for the token bucket algorithm. */
+  interface RateLimitEntry {
+    /** Current number of available tokens */
+    tokens: number;
+    /** Timestamp of last token refill */
+    lastRefill: number;
+  }
+
+  /** Proxy endpoint configuration. */
+  interface ProxyEndpoint {
+    /** Proxy URL endpoint */
+    url: string;
   }
 
   interface ScheduledEvent {

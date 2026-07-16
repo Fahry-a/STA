@@ -185,7 +185,7 @@ npm test
 ---
 
 <!-- 
-Thank you for contributing to DeepLX! 🚀
+Thank you for contributing to STA! 🚀
 
 Please ensure you have read and followed our [Contributing Guidelines](../CONTRIBUTING.md).
 

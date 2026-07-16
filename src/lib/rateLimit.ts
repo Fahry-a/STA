@@ -6,10 +6,7 @@
 
 import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
 import { getProxyEndpoints } from "./proxyManager";
-import {
-  checkSlidingWindowRateLimit,
-  getRateLimitHeaders,
-} from "./slidingWindowRateLimit";
+import { checkSlidingWindowRateLimit } from "./slidingWindowRateLimit";
 
 // Import types from worker-configuration for consistency
 interface Env {
@@ -17,11 +14,7 @@ interface Env {
   RATE_LIMIT_KV: KVNamespace;
   ANALYTICS: AnalyticsEngineDataset;
   PROXY_URLS?: string;
-  PROXY_WEIGHTS?: string;
 }
-
-// Re-export sliding window utilities for consumers of this module
-export { getRateLimitHeaders, checkSlidingWindowRateLimit };
 
 interface RateLimitEntry {
   tokens: number;
@@ -62,20 +55,6 @@ const rateLimitCache = new Map<
   { tokens: number; lastRefill: number; lastUpdate: number }
 >();
 const CACHE_TTL = 5000; // 5 seconds TTL for cache entries
-
-/**
- * Extract client IP address from request headers
- * Supports Cloudflare and standard forwarded headers
- * @param request The incoming request object
- * @returns The client IP address or "unknown" if not found
- */
-export function getClientIP(request: Request): string {
-  return (
-    request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
-}
 
 /**
  * Check rate limit for a specific client IP using token bucket algorithm
@@ -180,23 +159,17 @@ export async function checkRateLimit(
 /**
  * Delay execution for specified number of seconds
  * Used for implementing backoff strategies
+ *
+ * Uses setTimeout so the event loop is free to process other work while we wait.
+ * The previous implementation busy-spun on Promise microtasks, which burned CPU
+ * time (billable / capped on Cloudflare Workers) the entire delay and starved
+ * concurrent in-flight requests in the same isolate.
  * @param seconds - Number of seconds to delay
  * @returns Promise that resolves after the specified delay
  */
 export async function delayRequest(seconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    // Use a simple delay implementation for Workers environment
-    const start = Date.now();
-    const checkTime = () => {
-      if (Date.now() - start >= seconds * 1000) {
-        resolve();
-      } else {
-        // Use minimal delay to prevent blocking
-        Promise.resolve().then(checkTime);
-      }
-    };
-    checkTime();
-  });
+  const ms = Math.max(0, seconds * 1000);
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * DeepLX
+ * STA (Serverless Translation API)
  */
 
 import { Hono } from "hono";
@@ -16,19 +16,13 @@ import { createErrorResponse } from "./lib/errorHandler";
 import { logger, generateRequestId } from "./lib/logger";
 import { collectMetrics, formatMetricsResponse } from "./lib/metrics";
 import { performHealthCheck } from "./lib/healthCheck";
-import {
-  warmCache,
-  getCacheWarmingStatus,
-} from "./lib/cacheWarmer";
-import {
-  checkSlidingWindowRateLimit,
-  getRateLimitHeaders,
-} from "./lib/slidingWindowRateLimit";
+import { warmCache, getCacheWarmingStatus } from "./lib/cacheWarmer";
 import { translateBatch } from "./lib/v2Translate";
 import { normalizeLanguageCode } from "./lib/query";
 import {
   getSecureClientIP,
   handleCORSPreflight,
+  isAdminAuthorized,
   validateLanguageCode,
 } from "./lib/security";
 import { translateWithGoogle } from "./lib/services/googleTranslate";
@@ -74,14 +68,23 @@ function scheduled(
  * @param env Environment bindings
  */
 async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
-  // Clear the in-memory cache every 5 minutes to prevent memory leaks
+  // Clear the in-memory cache on each scheduled tick. The LRU already bounds
+  // size, so this is a hygiene reset rather than a leak fix. The memory cache
+  // is per-isolate, so this only clears the local isolate's view.
   clearMemoryCache();
 
-  // Warm cache during low-traffic periods (every other run / 10-minute intervals)
+  // Warm the cache with popular translations. The cron fires every 10 minutes,
+  // and warmCache() itself holds a cross-isolate KV leader lock for the warm
+  // interval, so only one isolate actually performs the DeepL calls per tick
+  // — the rest skip to avoid a thundering herd against the proxy endpoints.
   try {
     const result = await warmCache(env);
     logger.info(env, "Cache warming completed", {
-      metadata: { warmed: result.warmed, failed: result.failed },
+      metadata: {
+        warmed: result.warmed,
+        failed: result.failed,
+        skipped: result.skipped,
+      },
     });
   } catch (error) {
     logger.error(env, "Cache warming failed", {
@@ -143,24 +146,32 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    if (!params.text.trim()) {
+    const sanitizedText = params.text;
+
+    if (!sanitizedText.trim()) {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    // Basic text validation
-    let sanitizedText;
-    try {
-      sanitizedText = params.text;
-      if (sanitizedText.length > PAYLOAD_LIMITS.MAX_TEXT_LENGTH) {
-        sanitizedText = sanitizedText.slice(0, PAYLOAD_LIMITS.MAX_TEXT_LENGTH);
-      }
-    } catch (sanitizeError) {
-      return c.json(createStandardResponse(400, null), 400);
-    }
-
-    // Validate text length
-    if (!sanitizedText) {
-      return c.json(createStandardResponse(400, null), 400);
+    // Reject oversized text instead of silently truncating it. Silently slicing
+    // input would return a translation of only the first 5000 chars with a 200,
+    // which is silent data loss the caller can never detect.
+    if (sanitizedText.length > PAYLOAD_LIMITS.MAX_TEXT_LENGTH) {
+      logger.warn(env, "Text exceeds maximum length", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { length: sanitizedText.length },
+      });
+      return c.json(
+        createStandardResponse(
+          413,
+          null,
+          undefined,
+          undefined,
+          undefined
+        ),
+        413
+      );
     }
 
     // Validate and sanitize language parameters
@@ -175,10 +186,34 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       return c.json(createStandardResponse(400, null), 400);
     }
 
+    // Enforce rate limiting at the handler entry point so that EVERY request —
+    // including cache hits — consumes a token. Previously rate limiting only ran
+    // inside query() on the DeepL cache-miss path; cache hits and all Google
+    // requests bypassed it, leaving the public endpoints open to unbounded
+    // amplification.
+    const rateLimitEndpoint =
+      provider === "google"
+        ? "https://translate.google.com/translate_a/single"
+        : "deepl";
+    const rateLimitResult = await checkCombinedRateLimit(
+      clientIP,
+      rateLimitEndpoint,
+      env
+    );
+    if (!rateLimitResult.allowed) {
+      logger.warn(env, "Request rate limited", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { reason: rateLimitResult.reason },
+      });
+      return c.json(createStandardResponse(429, null), 429);
+    }
+
     // Check cache first for faster response
     const normalizedSourceLang = normalizeLanguageCode(sourceLang);
     const normalizedTargetLang = normalizeLanguageCode(targetLang);
-    const cacheKey = generateCacheKey(
+    const cacheKey = await generateCacheKey(
       sanitizedText,
       normalizedSourceLang,
       normalizedTargetLang,
@@ -213,7 +248,8 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
 
     let result;
 
-    // Choose translation provider
+    // Choose translation provider. Rate limiting is enforced above; query() no
+    // longer re-checks it, so a normal DeepL request isn't double-charged.
     if (provider === "google") {
       result = await translateWithGoogle(validatedParams, {
         env,
@@ -491,9 +527,9 @@ app
    * GET /metrics - Service performance and operational metrics
    */
   .get("/metrics", (c) => {
-    // Require admin API key to prevent exposing operational details publicly
-    const apiKey = c.req.header("X-API-Key");
-    if (!apiKey || apiKey !== c.env.ADMIN_API_KEY) {
+    // Require admin API key to prevent exposing operational details publicly.
+    // Fails closed when ADMIN_API_KEY is unset; comparison is constant-time.
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
       return c.json({ code: 401, message: "Unauthorized" }, 401);
     }
 
@@ -508,8 +544,7 @@ app
    * GET /admin/cache-status - Get cache warming status
    */
   .post("/admin/warm-cache", async (c) => {
-    const apiKey = c.req.header("X-API-Key");
-    if (!apiKey || apiKey !== c.env.ADMIN_API_KEY) {
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
       return c.json({ code: 401, message: "Unauthorized" }, 401);
     }
 
@@ -522,8 +557,7 @@ app
   })
 
   .get("/admin/cache-status", (c) => {
-    const apiKey = c.req.header("X-API-Key");
-    if (!apiKey || apiKey !== c.env.ADMIN_API_KEY) {
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
       return c.json({ code: 401, message: "Unauthorized" }, 401);
     }
 
@@ -537,4 +571,4 @@ app
    * Catch-all route for undefined paths
    * Redirects all other requests to the GitHub repository
    */
-  .all("*", (c) => c.redirect("https://github.com/xixu-me/DeepLX"));
+  .all("*", (c) => c.redirect("https://github.com/Fahry-a/STA"));
