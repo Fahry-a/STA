@@ -5,11 +5,12 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260719.1",
+    "@swc/core": "^1.15.46",
+    "@swc/jest": "^0.2.39",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.1",
     "jest": "^30.4.2",
-    "ts-jest": "^29.4.11",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "wrangler": "^4.112.0"
   },
   "engines": {
