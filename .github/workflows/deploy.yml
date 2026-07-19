@@ -1,15 +1,17 @@
 name: Deploy
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
   workflow_dispatch:
 
 # Deploy is an outward-facing publish, so we don't cancel an in-flight run.
-# `needs: ci` gates deploys on the canonical CI workflow passing for the same
-# commit (the ci.yml job is named `ci`); we still run lint+test inline as a
-# belt-and-suspenders check.
+# We gate on the canonical CI workflow (`on: workflow_run` watches ci.yml, named
+# `CI` in ci.yml) completing successfully for the same commit on the default
+# branch; we still run lint+test inline as a belt-and-suspenders check.
 permissions:
   contents: read
 
@@ -19,13 +21,18 @@ concurrency:
 
 jobs:
   deploy:
-    needs: ci
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
