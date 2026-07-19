@@ -1,10 +1,12 @@
 /**
  * Token bucket rate limiting implementation for client IP and proxy management
  * Provides comprehensive rate limiting with two-level caching for optimal performance
+ * Integrates sliding window rate limiter for burst protection at window boundaries
  */
 
 import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
 import { getProxyEndpoints } from "./proxyManager";
+import { checkSlidingWindowRateLimit } from "./slidingWindowRateLimit";
 
 // Import types from worker-configuration for consistency
 interface Env {
@@ -12,7 +14,6 @@ interface Env {
   RATE_LIMIT_KV: KVNamespace;
   ANALYTICS: AnalyticsEngineDataset;
   PROXY_URLS?: string;
-  PROXY_WEIGHTS?: string;
 }
 
 interface RateLimitEntry {
@@ -48,25 +49,43 @@ const PROXY_REFILL_RATE = PROXY_TOKENS_PER_SECOND;
 /**
  * In-memory cache for performance optimization
  * Uses Map for fast lookups and TTL-based cleanup
+ *
+ * Bounded by MAX_RATE_LIMIT_CACHE_SIZE using LRU semantics (delete-and-reinsert
+ * on access so iteration order tracks recency; the oldest key is evicted on
+ * overflow). The previous unbounded Map could grow without limit for the life
+ * of the isolate — under a spoofed-IP flood of unique keys the rate-limit cache
+ * would leak memory until eviction. The age-based `cleanupCacheIfNeeded()`
+ * sweep below handles TTL expiry; this cap is the hard ceiling.
  */
 const rateLimitCache = new Map<
   string,
   { tokens: number; lastRefill: number; lastUpdate: number }
 >();
 const CACHE_TTL = 5000; // 5 seconds TTL for cache entries
+const MAX_RATE_LIMIT_CACHE_SIZE = 5000; // Hard ceiling on cached rate-limit entries
 
 /**
- * Extract client IP address from request headers
- * Supports Cloudflare and standard forwarded headers
- * @param request The incoming request object
- * @returns The client IP address or "unknown" if not found
+ * Promote a cache key to most-recently-used by re-inserting it.
+ * @param key The key to touch
+ * @param value The value to store
  */
-export function getClientIP(request: Request): string {
-  return (
-    request.headers.get("CF-Connecting-IP") ||
-    request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
+function touchRateLimitCache(
+  key: string,
+  value: { tokens: number; lastRefill: number; lastUpdate: number }
+): void {
+  // Delete first so re-insertion moves the key to the end (most-recent) of
+  // the Map iteration order, which is insertion order.
+  rateLimitCache.delete(key);
+  rateLimitCache.set(key, value);
+
+  // Evict the least-recently-used entry if we've exceeded the cap.
+  while (rateLimitCache.size > MAX_RATE_LIMIT_CACHE_SIZE) {
+    const oldestKey = rateLimitCache.keys().next().value;
+    if (oldestKey === undefined) {
+      break;
+    }
+    rateLimitCache.delete(oldestKey);
+  }
 }
 
 /**
@@ -84,6 +103,12 @@ export async function checkRateLimit(
   const now = Date.now();
 
   try {
+    // Sliding window pre-check for fast in-memory burst protection
+    const slidingResult = checkSlidingWindowRateLimit(key, env);
+    if (!slidingResult.allowed) {
+      return false;
+    }
+
     const rateLimits = getDynamicRateLimits(env);
     const maxTokens = rateLimits.TOKENS_PER_MINUTE;
 
@@ -123,7 +148,7 @@ export async function checkRateLimit(
 
     if (tokens < 1) {
       // Update cache
-      rateLimitCache.set(key, {
+      touchRateLimitCache(key, {
         tokens,
         lastRefill: now,
         lastUpdate: now,
@@ -143,7 +168,7 @@ export async function checkRateLimit(
     tokens -= 1;
 
     // Update cache
-    rateLimitCache.set(key, {
+    touchRateLimitCache(key, {
       tokens,
       lastRefill: now,
       lastUpdate: now,
@@ -166,23 +191,17 @@ export async function checkRateLimit(
 /**
  * Delay execution for specified number of seconds
  * Used for implementing backoff strategies
+ *
+ * Uses setTimeout so the event loop is free to process other work while we wait.
+ * The previous implementation busy-spun on Promise microtasks, which burned CPU
+ * time (billable / capped on Cloudflare Workers) the entire delay and starved
+ * concurrent in-flight requests in the same isolate.
  * @param seconds - Number of seconds to delay
  * @returns Promise that resolves after the specified delay
  */
 export async function delayRequest(seconds: number): Promise<void> {
-  return new Promise((resolve) => {
-    // Use a simple delay implementation for Workers environment
-    const start = Date.now();
-    const checkTime = () => {
-      if (Date.now() - start >= seconds * 1000) {
-        resolve();
-      } else {
-        // Use minimal delay to prevent blocking
-        Promise.resolve().then(checkTime);
-      }
-    };
-    checkTime();
-  });
+  const ms = Math.max(0, seconds * 1000);
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -287,7 +306,7 @@ export async function checkProxyRateLimit(
     // Check if request should be rate limited
     if (tokens < 1) {
       // Update cache with current state
-      rateLimitCache.set(key, {
+      touchRateLimitCache(key, {
         tokens,
         lastRefill: now,
         lastUpdate: now,
@@ -307,7 +326,7 @@ export async function checkProxyRateLimit(
     tokens -= 1;
 
     // Update cache with new token count
-    rateLimitCache.set(key, {
+    touchRateLimitCache(key, {
       tokens,
       lastRefill: now,
       lastUpdate: now,

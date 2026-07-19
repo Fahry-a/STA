@@ -1,0 +1,9 @@
+# Local secrets for `wrangler dev`. Copy to `.dev.vars` (gitignored) and fill in
+# real values. In production these are injected via `wrangler secret put`.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# PROXY_URLS — comma-separated list of XDPL proxy endpoints.
+PROXY_URLS=https://your-xdpl-1.vercel.app/jsonrpc,https://your-xdpl-2.vercel.app/jsonrpc
+# ADMIN_API_KEY — protects /metrics and /admin/*. Generate a strong random key.
+ADMIN_API_KEY=

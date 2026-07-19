@@ -249,18 +249,7 @@ describe("Main App", () => {
       expect(response.status).toBe(400);
     });
 
-    it("should handle text that is too long", async () => {
-      const { query, getCachedTranslation } = require("../src/lib");
-
-      getCachedTranslation.mockResolvedValueOnce(null);
-      query.mockResolvedValueOnce({
-        code: 200,
-        data: "trimmed response",
-        id: 12345,
-        source_lang: "AUTO",
-        target_lang: "ZH",
-      });
-
+    it("should reject text that is too long instead of silently truncating", async () => {
       const request = new Request("http://localhost/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,7 +260,11 @@ describe("Main App", () => {
       });
       const response = await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(200); // Should truncate, not fail
+      // Oversized input is rejected with 413 rather than truncated and served
+      // as a 200, so the caller knows their full text was not translated.
+      expect(response.status).toBe(413);
+      const result = await response.json();
+      expect(result.code).toBe(413);
     });
 
     it("should handle translation errors", async () => {

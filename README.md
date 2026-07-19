@@ -1,18 +1,20 @@
-# DeepLX
+# STA
+
+> Serverless Translation API — Fork of [xixu-me/DeepLX](https://github.com/xixu-me/DeepLX), rebranded and hardened for production.
 
 ***[汉语](README.zh.md)***
 
-[![License](https://img.shields.io/github/license/xixu-me/deeplx)](./LICENSE)
+[![License](https://img.shields.io/github/license/Fahry-a/STA)](./LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](#self-deployment)
 
-DeepLX is a serverless translation service optimized for Cloudflare Workers. Through intelligent proxy endpoint rotation, advanced rate limiting algorithms, caching, and circuit breakers, it avoids HTTP 429 errors more effectively than traditional translation API setups while delivering lower latency. It supports both DeepL and Google Translate.
+STA is a serverless translation service optimized for Cloudflare Workers. Through intelligent proxy endpoint rotation, advanced rate limiting algorithms, caching, and circuit breakers, it avoids HTTP 429 errors more effectively than traditional translation API setups while delivering lower latency. It supports both DeepL and Google Translate.
 
 > [!NOTE]
-> Unlike paid translation APIs, DeepLX is completely free to use. There are no API keys, subscription fees, or usage-based charges.
+> Unlike paid translation APIs, STA is completely free to use. There are no API keys, subscription fees, or usage-based charges.
 
-## Why DeepLX
+## Why STA
 
-**Unlike paid translation APIs, DeepLX is completely free to use** - no API keys, no subscription fees, no usage limits. Simply deploy once and enjoy unlimited translation requests without any cost concerns.
+**Unlike paid translation APIs, STA is completely free to use** - no API keys, no subscription fees, no usage limits. Simply deploy once and enjoy unlimited translation requests without any cost concerns.
 
 ## Features & Performance Advantages
 
@@ -24,9 +26,9 @@ DeepLX is a serverless translation service optimized for Cloudflare Workers. Thr
 
 ### Performance Advantages
 
-DeepLX has significant improvements in performance and stability compared to the DeepL API. Here are key metric comparisons based on specific network environments:
+STA has significant improvements in performance and stability compared to the DeepL API. Here are key metric comparisons based on specific network environments:
 
-| Metric | DeepL API | DeepLX (Pre-deployed Instance) |
+| Metric | DeepL API | STA (Pre-deployed Instance) |
 |--------|-----------|-------------------------------|
 | Rate Limit | 50 requests/sec | 80 requests/sec (8 req/sec × 10 proxy endpoints) |
 | Average Network RTT | ~450ms | ~180ms (edge network acceleration) |
@@ -171,19 +173,36 @@ graph TB
 
 ## Hosted Service
 
-> [!WARNING]
-> The pre-deployed instance has been temporarily suspended due to excessive requests. Please [self-deploy](#self-deployment) to continue using the service.
+**Hosted Instance**: `https://sta.oryn.my.id`
 
-~~**Pre-deployed Instance**: `https://dplx.xi-xu.me`~~ (Temporarily Suspended)
+> [!NOTE]
+> This is the custom domain configured in `wrangler.jsonc`. Alternatively, you can [self-deploy](#self-deployment) your own instance.
 
 ## Quick Start
+
+### API Documentation
+
+- [API Reference](docs/api.md) - Detailed endpoint documentation
+- [OpenAPI Specification](docs/openapi.yaml) - Machine-readable API spec
+
+### Quick Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/deepl` | POST | Translate with DeepL |
+| `/google` | POST | Translate with Google |
+| `/v2/translate` | POST | Batch translation (APR support) |
+| `/health` | GET | Health check |
+| `/metrics` | GET | Performance metrics (auth required) |
+| `/admin/warm-cache` | POST | Trigger cache warming (auth required) |
+| `/admin/cache-status` | GET | Cache warming status (auth required) |
 
 ### cURL Examples
 
 #### DeepL Translation (Recommended)
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/deepl \
+curl -X POST https://sta.oryn.my.id/deepl \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -195,7 +214,7 @@ curl -X POST https://dplx.xi-xu.me/deepl \
 #### Google Translate
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/google \
+curl -X POST https://sta.oryn.my.id/google \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -207,7 +226,7 @@ curl -X POST https://dplx.xi-xu.me/google \
 #### Legacy Endpoint (DeepL)
 
 ```bash
-curl -X POST https://dplx.xi-xu.me/translate \
+curl -X POST https://sta.oryn.my.id/translate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello, world!",
@@ -222,7 +241,7 @@ curl -X POST https://dplx.xi-xu.me/translate \
 
 ```javascript
 async function translateWithDeepL(text, sourceLang = 'auto', targetLang = 'zh') {
-  const response = await fetch('https://dplx.xi-xu.me/deepl', {
+  const response = await fetch('https://sta.oryn.my.id/deepl', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -248,7 +267,7 @@ translateWithDeepL('Hello, world!', 'en', 'zh')
 
 ```javascript
 async function translateWithGoogle(text, sourceLang = 'auto', targetLang = 'zh') {
-  const response = await fetch('https://dplx.xi-xu.me/google', {
+  const response = await fetch('https://sta.oryn.my.id/google', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -279,7 +298,7 @@ import requests
 import json
 
 def translate_with_deepl(text, source_lang='auto', target_lang='zh'):
-    url = 'https://dplx.xi-xu.me/deepl'
+    url = 'https://sta.oryn.my.id/deepl'
     data = {
         'text': text,
         'source_lang': source_lang,
@@ -309,7 +328,7 @@ import requests
 import json
 
 def translate_with_google(text, source_lang='auto', target_lang='zh'):
-    url = 'https://dplx.xi-xu.me/google'
+    url = 'https://sta.oryn.my.id/google'
     data = {
         'text': text,
         'source_lang': source_lang,
@@ -352,14 +371,14 @@ A modern, free web-based translation app powered by the DeepLX API. Features inc
 
 1. [Download and install Pot for your platform](https://github.com/pot-app/pot-desktop/releases/latest)
 2. Open Pot settings and navigate to Service Settings
-3. Configure the DeepL service type as DeepLX and set the custom URL to `https://dplx.xi-xu.me/deepl`
+3. Configure the DeepL service type as DeepLX and set the custom URL to `https://sta.oryn.my.id/deepl`
 
 ### [Zotero](https://www.zotero.org/) (Open-source reference management app)
 
 1. [Download and install Zotero for your platform](https://www.zotero.org/download/)
 2. Download and install the [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate) plugin
 3. Open Zotero settings and navigate to the Services section under Translation
-4. Configure the translation service as DeepLX (API) and set the endpoint to `https://dplx.xi-xu.me/deepl` after clicking the config button
+4. Configure the translation service as DeepLX (API) and set the endpoint to `https://sta.oryn.my.id/deepl` after clicking the config button
 
 ### [PDFMathTranslate (pdf2zh)](https://github.com/Byaidu/PDFMathTranslate) (Open-source PDF document translation tool)
 
@@ -369,36 +388,36 @@ Refer to [Advanced Options](https://github.com/Byaidu/PDFMathTranslate?tab=readm
 
 1. [Install Immersive Translate](https://immersivetranslate.com/download/)
 2. Go to developer settings and enable beta testing features
-3. Go to translation services and add a custom translation service DeepLX, configure the API URL to `https://dplx.xi-xu.me/deepl`
+3. Go to translation services and add a custom translation service DeepLX, configure the API URL to `https://sta.oryn.my.id/deepl`
 4. Configure the maximum requests per second and maximum text length per request to appropriate values (e.g., `80` and `5000`) to ensure stability and performance
 
 ### [Bob](https://bobtranslate.com/) (Closed-source macOS app)
 
 1. [Download and install Bob from the Mac App Store](https://apps.apple.com/app/id1630034110)
 2. Download and install the [bob-plugin-deeplx](https://github.com/missuo/bob-plugin-deeplx) plugin
-3. Configure the plugin to use `https://dplx.xi-xu.me/deepl`
+3. Configure the plugin to use `https://sta.oryn.my.id/deepl`
 
 ## Self-Deployment
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/xixu-me/DeepLX)
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Fahry-a/STA)
 
 ### Prerequisites
 
-- Node.js 18+
+- Bun 1.0+
 - Cloudflare Workers account
 - Wrangler CLI
 
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/xixu-me/DeepLX.git
-cd DeepLX
+git clone https://github.com/Fahry-a/STA.git
+cd STA
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-npm install
+bun install
 ```
 
 ### 3. Configure Environment
@@ -410,20 +429,23 @@ Edit the `wrangler.jsonc` file and update the following configuration:
   "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
   "name": "YOUR_WORKER_NAME",
   "vars": {
-    "DEBUG_MODE": "false",
-    "PROXY_URLS": "your_proxy_endpoint_list,comma_separated"
+    "DEBUG_MODE": "false"
   }
 }
 ```
+
+> **Note:** `PROXY_URLS` is treated as a secret — it is not committed in
+> `wrangler.jsonc`. Set it via `wrangler secret put PROXY_URLS` for production
+> (or `.dev.vars` for local `wrangler dev`). See `.dev.vars.example`.
 
 ### 4. Create KV Namespaces
 
 ```bash
 # Create cache KV namespace
-npx wrangler kv namespace create "CACHE_KV"
+bunx wrangler kv namespace create "CACHE_KV"
 
 # Create rate limit KV namespace  
-npx wrangler kv namespace create "RATE_LIMIT_KV"
+bunx wrangler kv namespace create "RATE_LIMIT_KV"
 ```
 
 Update the returned namespace IDs to the `kv_namespaces` configuration in `wrangler.jsonc`.
@@ -432,10 +454,10 @@ Update the returned namespace IDs to the `kv_namespaces` configuration in `wrang
 
 ```bash
 # Development environment
-npx wrangler dev
+bun run dev
 
 # Production deployment
-npx wrangler deploy
+bun run deploy
 ```
 
 ## Proxy Endpoint Deployment
@@ -449,15 +471,13 @@ For optimal performance and stability, it's recommended to deploy as many [XDPL]
 ### Configure Proxy Endpoints
 
 1. Deploy multiple XDPL instances
-2. Add the deployed URLs to DeepLX's `PROXY_URLS` environment variable:
+2. Add the deployed URLs to STA's `PROXY_URLS` secret (a comma-separated list):
 
-```jsonc
-{
-  "vars": {
-    "PROXY_URLS": "https://your-xdpl-1.vercel.app/jsonrpc,https://your-xdpl-2.vercel.app/jsonrpc,https://your-xdpl-3.vercel.app/jsonrpc,https://your-xdpl-n.vercel.app/jsonrpc"
-  }
-}
+```bash
+echo "https://your-xdpl-1.vercel.app/jsonrpc,https://your-xdpl-2.vercel.app/jsonrpc,https://your-xdpl-3.vercel.app/jsonrpc,https://your-xdpl-n.vercel.app/jsonrpc" | bunx wrangler secret put PROXY_URLS
 ```
+
+For local development, use `.dev.vars` (see `.dev.vars.example`).
 
 ## API Reference
 
@@ -600,6 +620,7 @@ Used to verify request format and troubleshoot issues.
 | Code | Description |
 |------|-------------|
 | 200 | Translation successful |
+| 207 | Partial success (V2 batch - some translations failed) |
 | 400 | Request parameter error |
 | 429 | Request rate too high |
 | 500 | Internal server error |
@@ -647,29 +668,29 @@ export const PAYLOAD_LIMITS = {
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start local development with Wrangler |
-| `npm run deploy` | Deploy to Cloudflare Workers |
-| `npm run cf-typegen` | Generate Cloudflare Workers types |
-| `npm run lint` | Run TypeScript type checking |
-| `npm test` | Run the full test suite |
+| `bun run dev` | Start local development with Wrangler |
+| `bun run deploy` | Deploy to Cloudflare Workers |
+| `bun run cf-typegen` | Generate Cloudflare Workers types |
+| `bun run lint` | Run TypeScript type checking |
+| `bun test` | Run the full test suite |
 
 ## Testing
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run unit tests
-npm run test:unit
+bun run test:unit
 
 # Run integration tests
-npm run test:integration
+bun run test:integration
 
 # Run performance tests
-npm run test:performance
+bun run test:performance
 
 # Generate coverage report
-npm run test:coverage
+bun run test:coverage
 ```
 
 ## Troubleshooting
@@ -727,7 +748,7 @@ curl -X POST https://your-domain.workers.dev/debug \
 
 We welcome all forms of contributions! Please check the [Contributing Guide](CONTRIBUTING.md) to learn how to participate in repository development.
 
-1. **Report Issues**: Use [issue templates](https://github.com/xixu-me/DeepLX/issues/new/choose) to report bugs or request features
+1. **Report Issues**: Use [issue templates](https://github.com/Fahry-a/STA/issues/new/choose) to report bugs or request features
 2. **Submit Code**: Fork the repository, create feature branches, submit pull requests
 3. **Improve Documentation**: Fix errors, add examples, improve descriptions
 4. **Test Feedback**: Test in different environments and provide feedback
@@ -736,19 +757,17 @@ For repository workflow details, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ### Star History
 
-<a href="https://www.star-history.com/#xixu-me/DeepLX&Date">
+<a href="https://www.star-history.com/#Fahry-a/STA&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=xixu-me/DeepLX&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Fahry-a/STA&type=Date" />
  </picture>
 </a>
 
 ### Contact
 
-- **Author**: [Xi Xu](https://xi-xu.me)
-- **Email**: [Contact Email](mailto:i@xi-xu.me)
-- **Sponsor**: [Sponsor Link](https://xi-xu.me/#sponsorships)
+- **Author**: [Fahry-a](https://github.com/Fahry-a)
 
 ### Disclaimer
 
@@ -787,6 +806,6 @@ This repository is licensed under the MIT License - see the [LICENSE](LICENSE) f
 
 **If this repository is helpful to you, please consider giving it a ⭐ star!**
 
-Made with ❤️ by [Xi Xu](https://xi-xu.me)
+Made with ❤️ by [Fahry-a](https://github.com/Fahry-a)
 
 </div>

@@ -1,5 +1,5 @@
 /**
- * Enhanced error handling and monitoring for DeepLX API
+ * Enhanced error handling and monitoring for STA API
  * Provides standardized error processing, sanitization, and response formatting
  */
 
@@ -120,7 +120,7 @@ export function logError(
     timestamp: errorDetails.timestamp,
   };
 
-  console.error("DeepLX Error:", sanitizedDetails);
+  console.error("STA Error:", sanitizedDetails);
 
   return errorDetails;
 }

@@ -1,5 +1,5 @@
 /**
- * Type definitions for DeepLX translation service
+ * Type definitions for the STA translation service
  * Provides comprehensive type safety for API operations and data structures
  */
 
@@ -40,7 +40,7 @@ export type RequestParams = {
 };
 
 /**
- * Standardized response parameters for DeepLX API
+ * Standardized response parameters for STA API
  * Note: Language codes in responses are always returned in uppercase when code is 200
  * When code is not 200, source_lang and target_lang are null
  */
@@ -96,6 +96,66 @@ export function createStandardResponse(
     id: responseId,
     source_lang: (source_lang || "AUTO").toUpperCase(),
     target_lang: (target_lang || "EN").toUpperCase(),
+  };
+}
+
+/**
+ * V2 Batch translation request parameters
+ */
+export type V2RequestParams = {
+  text: string[];
+  APR?: boolean; // Array Per Request (default: true)
+  source_lang?: SourceLang;
+  target_lang: TargetLang;
+};
+
+/**
+ * V2 Batch translation response
+ *
+ * `apr` mirrors the Array Per Request mode that was actually applied to the
+ * batch (true = one upstream call per text item, false = a single combined
+ * call), so clients can tell how the request was processed. It is `false` on
+ * responses where validation never ran (parse/early-reject paths), not `null`,
+ * to keep the field a concrete boolean in every serialized response.
+ */
+export type V2ResponseParams = {
+  code: number;
+  apr: boolean;
+  data: V2TranslationResult[];
+  id: number;
+};
+
+/**
+ * Individual translation result in batch
+ */
+export type V2TranslationResult = {
+  text: string;
+  index: number;
+  detected_source_lang?: string;
+  success: boolean;
+  error?: string;
+};
+
+/**
+ * Create standardized V2 response format
+ *
+ * `options.apr` reports whether Array Per Request mode was applied; it defaults
+ * to `false` (never `undefined`) so the `apr` key is always present in the
+ * serialized JSON — `JSON.stringify` drops `undefined` values, and callers
+ * rely on the field being present on every response.
+ * @param options Optional `{ apr?: boolean; id?: number }` — apr defaults to
+ * `false`, id defaults to a random 10-digit number.
+ */
+export function createV2Response(
+  code: number,
+  data: V2TranslationResult[],
+  options?: { apr?: boolean; id?: number }
+): V2ResponseParams {
+  return {
+    code,
+    apr: options?.apr ?? false,
+    data,
+    id: options?.id ?? Math.floor(Math.random() * 10000000000),
   };
 }
 

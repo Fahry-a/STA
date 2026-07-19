@@ -22,7 +22,7 @@ body:
       options:
         - label: I have searched existing issues
           required: true
-        - label: I am using the latest version of DeepLX
+        - label: I am using the latest version of STA
           required: true
         - label: I have checked the documentation
           required: true
@@ -60,7 +60,7 @@ body:
       label: Steps to Reproduce
       description: Detailed steps to reproduce the issue
       placeholder: |
-        1. Configure DeepLX with...
+        1. Configure STA with...
         2. Send a request to...
         3. Observe that...
       value: |
@@ -90,7 +90,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Where are you running DeepLX?
+      description: Where are you running STA?
       options:
         - Cloudflare Workers
         - Local development
@@ -102,8 +102,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: DeepLX Version
-      description: What version of DeepLX are you using?
+      label: STA Version
+      description: What version of STA are you using?
       placeholder: e.g., 1.0.0
     validations:
       required: true

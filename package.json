@@ -1,27 +1,27 @@
 {
-  "author": "xixu-me",
+  "author": "Fahry-a",
   "dependencies": {
-    "hono": "^4.12.27"
+    "hono": "^4.12.30"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260628.1",
+    "@cloudflare/workers-types": "^5.20260716.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.1",
     "jest": "^30.4.2",
     "ts-jest": "^29.4.11",
     "typescript": "^5.9.3",
-    "wrangler": "^4.105.0"
+    "wrangler": "^4.111.0"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "license": "MIT",
   "main": "src/index.ts",
-  "name": "deeplx",
+  "name": "sta",
   "private": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/xixu-me/DeepLX.git"
+    "url": "https://github.com/Fahry-a/STA.git"
   },
   "scripts": {
     "cf-typegen": "wrangler types",

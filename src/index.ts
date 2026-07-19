@@ -1,26 +1,42 @@
 /**
- * DeepLX
+ * STA (Serverless Translation API)
  */
 
 import { Hono } from "hono";
 import {
+  type V2ValidationResult,
   clearMemoryCache,
   generateCacheKey,
   getCachedTranslation,
+  getV2ItemChargeCount,
   query,
   setCachedTranslation,
+  validateV2Request,
 } from "./lib";
 
 import { PAYLOAD_LIMITS } from "./lib/config";
 import { createErrorResponse } from "./lib/errorHandler";
+import { logger, generateRequestId } from "./lib/logger";
+import { collectMetrics, formatMetricsResponse } from "./lib/metrics";
+import { validateTranslationRequest } from "./lib/validation";
+import { performHealthCheck } from "./lib/healthCheck";
+import { warmCache, getCacheWarmingStatus } from "./lib/cacheWarmer";
+import { translateBatch } from "./lib/v2Translate";
 import { normalizeLanguageCode } from "./lib/query";
 import {
+  SECURITY_HEADERS,
   getSecureClientIP,
   handleCORSPreflight,
+  isAdminAuthorized,
   validateLanguageCode,
 } from "./lib/security";
 import { translateWithGoogle } from "./lib/services/googleTranslate";
-import { createStandardResponse } from "./lib/types";
+import {
+  createStandardResponse,
+  createV2Response,
+  type V2RequestParams,
+} from "./lib/types";
+import { checkCombinedRateLimit } from "./lib/rateLimit";
 
 /**
  * Initialize Hono app with environment bindings
@@ -57,8 +73,29 @@ function scheduled(
  * @param env Environment bindings
  */
 async function handleScheduled(event: ScheduledEvent, env: Env): Promise<void> {
-  // Clear the in-memory cache every 5 minutes to prevent memory leaks
+  // Clear the in-memory cache on each scheduled tick. The LRU already bounds
+  // size, so this is a hygiene reset rather than a leak fix. The memory cache
+  // is per-isolate, so this only clears the local isolate's view.
   clearMemoryCache();
+
+  // Warm the cache with popular translations. The cron fires every 10 minutes,
+  // and warmCache() itself holds a cross-isolate KV leader lock for the warm
+  // interval, so only one isolate actually performs the DeepL calls per tick
+  // — the rest skip to avoid a thundering herd against the proxy endpoints.
+  try {
+    const result = await warmCache(env);
+    logger.info(env, "Cache warming completed", {
+      metadata: {
+        warmed: result.warmed,
+        failed: result.failed,
+        skipped: result.skipped,
+      },
+    });
+  } catch (error) {
+    logger.error(env, "Cache warming failed", {
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
+  }
 }
 
 /**
@@ -82,6 +119,14 @@ export default worker;
 async function handleTranslation(c: any, provider: "deepl" | "google") {
   const env = c.env;
   const clientIP = getSecureClientIP(c.req.raw) || "unknown";
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+
+  logger.info(env, "Translation request started", {
+    requestId,
+    endpoint: `/${provider}`,
+    clientIP,
+  });
 
   try {
     // Parse request parameters with better error handling
@@ -89,37 +134,76 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
     try {
       params = await c.req.json();
     } catch (parseError) {
+      logger.warn(env, "Request parse failed", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+      });
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    // Enhanced parameter validation with input sanitization
+    // Enhanced parameter validation. validateTranslationRequest (src/lib/
+    // validation.ts) was previously fully implemented and tested but never
+    // wired — V1 used ad-hoc checks here. We now run it as the consolidated
+    // shape/empty/length guard, but keep two DeepL-specific concerns in place
+    // around it:
+    //   - the explicit 413 for oversized text (preserved BEFORE the validator,
+    //     which would otherwise fold it into a generic 400), and
+    //   - the DeepL language code path (validateLanguageCode + normalize),
+    //     which accepts target_lang="auto" so DeepL can auto-detect — a behavior
+    //     that the generic validator would reject. We therefore skip the
+    //     validator's "auto target" rule by allowing auto through here.
     if (!params || typeof params !== "object") {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    if (!params.text || typeof params.text !== "string") {
+    if (typeof params.text !== "string") {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    if (!params.text.trim()) {
+    const sanitizedText = params.text;
+
+    // Reject oversized text instead of silently truncating it. Silently slicing
+    // input would return a translation of only the first 5000 chars with a 200,
+    // which is silent data loss the caller can never detect.
+    if (sanitizedText.trim().length === 0) {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    // Basic text validation
-    let sanitizedText;
-    try {
-      sanitizedText = params.text;
-      if (sanitizedText.length > PAYLOAD_LIMITS.MAX_TEXT_LENGTH) {
-        sanitizedText = sanitizedText.slice(0, PAYLOAD_LIMITS.MAX_TEXT_LENGTH);
-      }
-    } catch (sanitizeError) {
-      return c.json(createStandardResponse(400, null), 400);
+    if (sanitizedText.length > PAYLOAD_LIMITS.MAX_TEXT_LENGTH) {
+      logger.warn(env, "Text exceeds maximum length", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { length: sanitizedText.length },
+      });
+      return c.json(
+        createStandardResponse(
+          413,
+          null,
+          undefined,
+          undefined,
+          undefined
+        ),
+        413
+      );
     }
 
-    // Validate text length
-    if (!sanitizedText) {
-      return c.json(createStandardResponse(400, null), 400);
-    }
+    // Run the structured validator (src/lib/validation.ts) — previously dead
+    // code, never called — for the canonical request checks (object shape, text
+    // string/non-empty/max-length, language types). V1 still accepts
+    // target_lang="auto" for DeepL auto-detection, which the generic validator
+    // rejects, so we discount that single rule when deciding whether to 400:
+    // if the only errors are language-code rules (not structure/text errors),
+    // we let the DeepL-specific validateLanguageCode path below make the final
+    // language decision instead.
+    const validation = validateTranslationRequest(params);
+    const structureErrors = validation.errors.filter(
+      (err: string) =>
+        !err.toLowerCase().includes("language") &&
+        !err.toLowerCase().includes("source") &&
+        !err.toLowerCase().includes("target")
+    );
 
     // Validate and sanitize language parameters
     const sourceLang = params.source_lang
@@ -129,14 +213,42 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       ? validateLanguageCode(params.target_lang)
       : "en";
 
-    if (!sourceLang || !targetLang) {
+    if (
+      structureErrors.length > 0 ||
+      !sourceLang ||
+      !targetLang
+    ) {
       return c.json(createStandardResponse(400, null), 400);
+    }
+
+    // Enforce rate limiting at the handler entry point so that EVERY request —
+    // including cache hits — consumes a token. Previously rate limiting only ran
+    // inside query() on the DeepL cache-miss path; cache hits and all Google
+    // requests bypassed it, leaving the public endpoints open to unbounded
+    // amplification.
+    const rateLimitEndpoint =
+      provider === "google"
+        ? "https://translate.google.com/translate_a/single"
+        : "deepl";
+    const rateLimitResult = await checkCombinedRateLimit(
+      clientIP,
+      rateLimitEndpoint,
+      env
+    );
+    if (!rateLimitResult.allowed) {
+      logger.warn(env, "Request rate limited", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { reason: rateLimitResult.reason },
+      });
+      return c.json(createStandardResponse(429, null), 429);
     }
 
     // Check cache first for faster response
     const normalizedSourceLang = normalizeLanguageCode(sourceLang);
     const normalizedTargetLang = normalizeLanguageCode(targetLang);
-    const cacheKey = generateCacheKey(
+    const cacheKey = await generateCacheKey(
       sanitizedText,
       normalizedSourceLang,
       normalizedTargetLang,
@@ -145,6 +257,12 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
     const cached = await getCachedTranslation(cacheKey, env);
 
     if (cached) {
+      logger.info(env, "Translation request completed (cache hit)", {
+        requestId,
+        endpoint: `/${provider}`,
+        duration: Date.now() - startTime,
+        cacheHit: true,
+      });
       return c.json(
         createStandardResponse(
           200,
@@ -165,7 +283,8 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
 
     let result;
 
-    // Choose translation provider
+    // Choose translation provider. Rate limiting is enforced above; query() no
+    // longer re-checks it, so a normal DeepL request isn't double-charged.
     if (provider === "google") {
       result = await translateWithGoogle(validatedParams, {
         env,
@@ -196,8 +315,24 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       );
     }
 
+    logger.info(env, "Translation request completed", {
+      requestId,
+      endpoint: `/${provider}`,
+      duration: Date.now() - startTime,
+      cacheHit: false,
+    });
+
     return c.json(result, result.code as any);
   } catch (error) {
+    logger.error(env, "Translation request failed", {
+      requestId,
+      endpoint: `/${provider}`,
+      duration: Date.now() - startTime,
+      metadata: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+
     const errorResponse = createErrorResponse(error, {
       endpoint: `/${provider}`,
       clientIP,
@@ -206,6 +341,36 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
     return c.json(errorResponse.response, errorResponse.httpStatus as any);
   }
 }
+
+/**
+ * Apply security headers to every response.
+ *
+ * `addSecurityHeaders` in src/lib/security.ts was previously exported but never
+ * wired, so no security headers (X-Content-Type-Options, X-Frame-Options,
+ * Referrer-Policy, Permissions-Policy, CSP) ever reached clients. This post-
+ * handler middleware runs after every route, copies the finalized Response's
+ * headers, adds the security headers, and rebuilds the Response so they ship.
+ * CORS headers are intentionally NOT set here — they remain owned by
+ * handleCORSPreflight and the user has excluded CORS changes from scope.
+ */
+app.use("*", async (c, next) => {
+  await next();
+
+  try {
+    const existing = new Headers(c.res.headers);
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      existing.set(key, value);
+    }
+    c.res = new Response(c.res.body, {
+      status: c.res.status,
+      statusText: c.res.statusText,
+      headers: existing,
+    });
+  } catch {
+    // If header rewriting fails for any reason, leave the original response
+    // intact rather than breaking the response entirely.
+  }
+});
 
 /**
  * API Route Definitions
@@ -344,7 +509,172 @@ app
   })
 
   /**
+   * V2 Batch Translation endpoint
+   * POST /v2/translate - Batch translation with APR (Array Per Request) support
+   */
+  .post("/v2/translate", async (c) => {
+    const env = c.env;
+    const clientIP = getSecureClientIP(c.req.raw) || "unknown";
+
+    // Hoisted above the try so the catch path can report the APR intent that was
+    // validated before the throw. The parse-failure path genuinely has no
+    // validation object yet, so it reports apr=false (the field is always a
+    // concrete boolean on V2 responses).
+    let validation: V2ValidationResult | undefined;
+
+    try {
+      // Parse request body
+      let params: V2RequestParams;
+      try {
+        params = await c.req.json();
+      } catch (parseError) {
+        return c.json(createV2Response(400, [], { apr: false }), 400);
+      }
+
+      // Validate early so we know how many items the batch will produce before
+      // we spend any rate-limit tokens. An invalid request returns 400 with no
+      // tokens consumed.
+      validation = validateV2Request(params);
+      if (!validation.isValid) {
+        // APR intent was rejected before being applied; report false.
+        return c.json(
+          createV2Response(400, [], {
+            apr: validation.sanitizedInput?.APR ?? false,
+          }),
+          400
+        );
+      }
+
+      // Rate-limit charging that matches the actual upstream cost. Previously
+      // this checked the rate limit exactly once for the whole request, but an
+      // APR=true batch fires N parallel DeepL calls (one per text item) while
+      // only consuming a single client + proxy token — unbounded amplification
+      // of N (capped at MAX_ARRAY_ITEMS=10). We now charge one token per real
+      // upstream call: N for APR=true, 1 for APR=false (single combined call).
+      // The check short-circuits to 429 on the first failure so a rate-limited
+      // client never proceeds to the expensive translation work.
+      const charges = getV2ItemChargeCount(validation);
+      const validatedApr = validation.sanitizedInput!.APR;
+
+      for (let i = 0; i < charges; i++) {
+        const rateLimitResult = await checkCombinedRateLimit(
+          clientIP,
+          "deepl", // Use DeepL proxy endpoints
+          env
+        );
+
+        if (!rateLimitResult.allowed) {
+          // Validation already passed, so APR is known and accurate here.
+          return c.json(createV2Response(429, [], { apr: validatedApr }), 429);
+        }
+      }
+
+      // Translate batch
+      const result = await translateBatch(validation.sanitizedInput as V2RequestParams, {
+        env,
+        clientIP,
+      });
+
+      return c.json(result, result.code as any);
+    } catch (error) {
+      const errorResponse = createErrorResponse(error, {
+        endpoint: "/v2/translate",
+        clientIP,
+      });
+
+      // If a 500 originated after validation, the real APR is available; if the
+      // throw happened earlier, fall back to false (consistent with the other
+      // pre-validation error paths).
+      return c.json(
+        createV2Response(errorResponse.httpStatus, [], {
+          apr: validation?.sanitizedInput?.APR ?? false,
+        }),
+        errorResponse.httpStatus as any
+      );
+    }
+  })
+
+  /**
+   * Health Check endpoints
+   * GET /health - Comprehensive health status
+   * GET /health/live - Simple liveness check
+   * GET /health/ready - Readiness check
+   */
+  .get("/health", async (c) => {
+    const result = await performHealthCheck(c.env);
+    const statusCode =
+      result.status === "healthy" || result.status === "degraded"
+        ? 200
+        : 503;
+    return c.json(result, statusCode);
+  })
+
+  .get("/health/live", (c) => {
+    // Simple liveness check
+    return c.json({ status: "alive", timestamp: new Date().toISOString() });
+  })
+
+  .get("/health/ready", async (c) => {
+    // Readiness check - checks if service can handle requests
+    const result = await performHealthCheck(c.env);
+    const ready = result.status !== "unhealthy";
+    return c.json(
+      {
+        ready,
+        status: result.status,
+        timestamp: new Date().toISOString(),
+      },
+      ready ? 200 : 503
+    );
+  })
+
+  /**
+   * Metrics endpoint (protected by API key)
+   * GET /metrics - Service performance and operational metrics
+   */
+  .get("/metrics", (c) => {
+    // Require admin API key to prevent exposing operational details publicly.
+    // Fails closed when ADMIN_API_KEY is unset; comparison is constant-time.
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
+      return c.json({ code: 401, message: "Unauthorized" }, 401);
+    }
+
+    const env = c.env;
+    const metrics = collectMetrics(env);
+    return c.json(formatMetricsResponse(metrics));
+  })
+
+  /**
+   * Admin endpoints (protected by API key)
+   * POST /admin/warm-cache - Manually trigger cache warming
+   * GET /admin/cache-status - Get cache warming status
+   */
+  .post("/admin/warm-cache", async (c) => {
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
+      return c.json({ code: 401, message: "Unauthorized" }, 401);
+    }
+
+    const result = await warmCache(c.env);
+    return c.json({
+      code: 200,
+      data: result,
+      message: `Cache warming completed: ${result.warmed} warmed, ${result.failed} failed`,
+    });
+  })
+
+  .get("/admin/cache-status", (c) => {
+    if (!isAdminAuthorized(c.req.header("X-API-Key"), c.env.ADMIN_API_KEY)) {
+      return c.json({ code: 401, message: "Unauthorized" }, 401);
+    }
+
+    return c.json({
+      code: 200,
+      data: getCacheWarmingStatus(),
+    });
+  })
+
+  /**
    * Catch-all route for undefined paths
    * Redirects all other requests to the GitHub repository
    */
-  .all("*", (c) => c.redirect("https://github.com/xixu-me/DeepLX"));
+  .all("*", (c) => c.redirect("https://github.com/Fahry-a/STA"));

@@ -1,5 +1,5 @@
 /**
- * Configuration constants for the DeepLX app
+ * Configuration constants for the STA app
  * Centralizes all configuration values for easy maintenance and consistency
  */
 
@@ -36,7 +36,6 @@ export const RATE_LIMIT_CONFIG = {
  */
 export const CACHE_CONFIG = {
   TTL: 3600, // 1 hour cache time-to-live
-  MEMORY_CACHE_SIZE: 1000, // Maximum items in memory cache
 };
 
 /**

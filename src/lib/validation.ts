@@ -1,5 +1,5 @@
 /**
- * Input validation and sanitization utilities for DeepLX API
+ * Input validation and sanitization utilities for STA API
  * Provides comprehensive validation for translation requests
  */
 

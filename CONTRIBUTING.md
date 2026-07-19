@@ -1,6 +1,6 @@
-# Contributing to DeepLX
+# Contributing to STA
 
-Thank you for your interest in contributing to DeepLX! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to STA! This document provides guidelines and information for contributors.
 
 ## Code of Conduct
 
@@ -20,8 +20,7 @@ This repository and everyone participating in it is governed by our [Code of Con
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
-- npm or yarn
+- Bun 1.0+
 - Cloudflare Wrangler CLI
 
 ### Installation
@@ -29,26 +28,26 @@ This repository and everyone participating in it is governed by our [Code of Con
 1. Clone your fork:
 
    ```bash
-   git clone https://github.com/YOUR_USERNAME/DeepLX.git
-   cd DeepLX
+   git clone https://github.com/YOUR_USERNAME/STA.git
+   cd STA
    ```
 
 2. Install dependencies:
 
    ```bash
-   npm install
+   bun install
    ```
 
 3. Set up your development environment:
 
    ```bash
-   npm run test:setup
+   bun run test:setup
    ```
 
 4. Start the development server:
 
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 ## Making Changes
@@ -100,18 +99,18 @@ Closes #123
 
 ```bash
 # Run all tests
-npm test
+bun test
 
 # Run tests with coverage
-npm run test:coverage
+bun run test:coverage
 
 # Run specific test types
-npm run test:unit
-npm run test:integration
-npm run test:performance
+bun run test:unit
+bun run test:integration
+bun run test:performance
 
 # Run tests in watch mode
-npm run test:watch
+bun run test:watch
 ```
 
 ### Writing Tests
@@ -133,8 +132,8 @@ npm run test:watch
 
 ### Before Submitting
 
-1. Ensure all tests pass: `npm test`
-2. Check code style: `npm run lint`
+1. Ensure all tests pass: `bun test`
+2. Check code style: `bun run lint`
 3. Update documentation if needed
 4. Add tests for new functionality
 5. Update CHANGELOG.md if applicable
@@ -259,4 +258,4 @@ Contributors will be recognized in:
 - README.md contributors section
 - GitHub contributors page
 
-Thank you for contributing to DeepLX! 🚀
+Thank you for contributing to STA! 🚀

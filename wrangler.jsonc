@@ -1,28 +1,26 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "account_id": "07c56e0dc4b3b1597495aa78fe7ebbf8",
   "analytics_engine_datasets": [
     {
-      "binding": "ANALYTICS"
+      "binding": "ANALYTICS",
+      "dataset": "sta-analytics"
     }
   ],
   "compatibility_date": "2025-07-19",
   "kv_namespaces": [
     {
       "binding": "CACHE_KV",
-      "id": "4d5895d8716247f486493b93edbc5fe9",
-      "preview_id": "e9e499fe006e4879a0668e792fe2dd15"
+      "id": "9b17a4f5a9074c13a7d3796a9170b74d"
     },
     {
       "binding": "RATE_LIMIT_KV",
-      "id": "07147ca64a4c48fe952f62afe469bb44",
-      "preview_id": "bbed039364e5488e8ed58701c3ee5da5"
+      "id": "78b21a8a40a54d888582ef576ef9354f"
     }
   ],
   "main": "src/index.ts",
-  "name": "deeplx",
+  "name": "sta",
   "observability": {
-    "enabled": false,
+    "enabled": true,
     "head_sampling_rate": 1,
     "logs": {
       "enabled": true,
@@ -40,11 +38,20 @@
     "mode": "smart"
   },
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/10 * * * *"]
   },
+  // PROXY_URLS is intentionally NOT listed here — it is a secret containing
+  // the upstream proxy list. Set it with `wrangler secret put PROXY_URLS` for
+  // production, or via `.dev.vars` for local `wrangler dev` (see
+  // .dev.vars.example). getProxyEndpoints() reads it from env at runtime.
   "vars": {
-    "DEBUG_MODE": "false",
-    "PROXY_URLS": "https://0.xdpl.xixu.dpdns.org/jsonrpc,https://1.xdpl.xixu.dpdns.org/jsonrpc,https://2.xdpl.xixu.dpdns.org/jsonrpc,https://3.xdpl.xixu.dpdns.org/jsonrpc,https://4.xdpl.xixu.dpdns.org/jsonrpc,https://5.xdpl.xixu.dpdns.org/jsonrpc,https://6.xdpl.xixu.dpdns.org/jsonrpc,https://7.xdpl.xixu.dpdns.org/jsonrpc,https://8.xdpl.xixu.dpdns.org/jsonrpc,https://9.xdpl.xixu.dpdns.org/jsonrpc"
+    "DEBUG_MODE": "false"
   },
-  "workers_dev": false
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "sta.oryn.my.id",
+      "custom_domain": true
+    }
+  ]
 }

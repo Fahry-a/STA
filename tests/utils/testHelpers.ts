@@ -191,7 +191,6 @@ export function createTestEnvironment() {
     } as any,
     PROXY_URLS:
       "https://test1.example.com/jsonrpc,https://test2.example.com/jsonrpc",
-    PROXY_WEIGHTS: "1,1",
     DEBUG_MODE: "false",
   };
 

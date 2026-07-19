@@ -1,15 +1,28 @@
 /**
- * DeepLX Library Module Exports
- * Central export file for all DeepLX library modules and utilities
+ * STA Library Module Exports
+ * Central export file for all STA library modules and utilities
  */
 
 import { query } from "./query";
 
 // Core functionality exports
 export * from "./cache";
-export * from "./circuitBreaker";
 export * from "./errorHandler";
-export * from "./proxyManager";
+export * from "./logger";
+export * from "./metrics";
+export * from "./healthCheck";
+export * from "./cacheWarmer";
+export * from "./slidingWindowRateLimit";
+export * from "./v2Validation";
+export * from "./v2Translate";
+export {
+  getProxyEndpoints,
+  selectProxy,
+  generateBrowserFingerprint,
+  recordProxySuccess,
+  recordProxyFailure,
+  getProxyHealthStats,
+} from "./proxyManager";
 export * from "./rateLimit";
 export * from "./retryLogic";
 export * from "./textUtils";

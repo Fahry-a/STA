@@ -1,5 +1,5 @@
 /**
- * Exponential backoff retry logic for DeepLX operations
+ * Exponential backoff retry logic for STA operations
  * Provides robust error handling with configurable retry strategies
  */
 
@@ -36,7 +36,14 @@ export async function retryWithBackoff<T>(
     } catch (error: any) {
       lastError = error;
       if (isRetryable(error)) {
-        const delay = initialDelay * Math.pow(backoffFactor, attempt);
+        // Full jitter: sleep a random duration in [0, fullDelay]. Without
+        // jitter every client retries at the same fixed offsets after a
+        // shared failure event (e.g. DeepL returning 429 to many requests
+        // at once), producing a synchronized retry burst that re-triggers
+        // the failure. Uniform jitter spreads retries across the window,
+        // the AWS-recommended decorrelation strategy.
+        const fullDelay = initialDelay * Math.pow(backoffFactor, attempt);
+        const delay = Math.random() * fullDelay;
         // Use delayRequest for Cloudflare Workers compatibility
         await delayRequest(delay / 1000); // Convert to seconds
       } else {
