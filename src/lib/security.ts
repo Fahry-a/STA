@@ -27,30 +27,6 @@ const CORS_CONFIG = {
 };
 
 /**
- * Add security headers to response
- * @param response The response object to modify
- * @returns Modified response with security headers
- */
-export function addSecurityHeaders(response: any): any {
-  const newHeaders = new Map(response.headers);
-
-  // Add security headers
-  Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
-    newHeaders.set(key, value);
-  });
-
-  // Add CORS headers for API endpoints
-  Object.entries(CORS_CONFIG).forEach(([key, value]) => {
-    newHeaders.set(key, value);
-  });
-
-  return {
-    ...response,
-    headers: newHeaders,
-  };
-}
-
-/**
  * Handle CORS preflight requests
  * @param c Hono context
  * @returns CORS preflight response

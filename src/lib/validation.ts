@@ -16,7 +16,11 @@ const MAX_TEXT_LENGTH = PAYLOAD_LIMITS.MAX_TEXT_LENGTH;
 export interface ValidationResult {
   isValid: boolean;
   errors: string[];
-  sanitizedInput?: any;
+  sanitizedInput?: {
+    text: string;
+    source_lang: string;
+    target_lang: string;
+  };
 }
 
 /**
@@ -26,7 +30,7 @@ export interface ValidationResult {
  * @returns ValidationResult - Validation result with errors and sanitized input
  */
 
-export function validateTranslationRequest(input: any): ValidationResult {
+export function validateTranslationRequest(input: Record<string, unknown>): ValidationResult {
   const errors: string[] = [];
 
   // Check if input is an object
@@ -53,7 +57,7 @@ export function validateTranslationRequest(input: any): ValidationResult {
   // Validate source_lang (basic format validation)
   if (input.source_lang && typeof input.source_lang !== "string") {
     errors.push("Source language must be a string");
-  } else if (input.source_lang && input.source_lang.length < 2) {
+  } else if (input.source_lang && typeof input.source_lang === "string" && input.source_lang.length < 2) {
     errors.push("Source language code is too short");
   }
 

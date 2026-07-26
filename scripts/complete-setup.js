@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Complete DeepLX Test Suite Setup
+ * Complete STA Test Suite Setup
  * One-command solution to set up the entire testing environment
  */
 
@@ -202,7 +202,7 @@ function runSampleTests() {
 function showSummary() {
   logHeader("Setup Complete!");
 
-  log("🎉 DeepLX Test Suite setup completed successfully!", "green");
+  log("🎉 STA Test Suite setup completed successfully!", "green");
 
   console.log("\n" + colorize("📊 Test Suite Statistics:", "bright"));
   log("  • 565+ comprehensive tests", "cyan");
@@ -232,17 +232,17 @@ function showSummary() {
   console.log(
     "\n" +
       colorize(
-        "🏆 Your DeepLX service is now thoroughly tested and production-ready!",
+        "🏆 Your STA service is now thoroughly tested and production-ready!",
         "green"
       )
   );
 }
 
 function main() {
-  logHeader("DeepLX Complete Test Suite Setup");
+  logHeader("STA Complete Test Suite Setup");
 
   log(
-    "This script will set up the complete testing environment for DeepLX.",
+    "This script will set up the complete testing environment for STA.",
     "cyan"
   );
   log(

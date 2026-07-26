@@ -25,30 +25,3 @@ export function validateEnvironment(env: Env): string[] {
 
   return errors;
 }
-
-/**
- * Parse and validate proxy URLs from environment
- * Extracts valid proxy URLs from comma-separated environment variable
- * @param env The environment object containing proxy configuration
- * @returns Array of valid proxy URLs
- */
-export function getProxyUrls(env: Env): string[] {
-  if (!env.PROXY_URLS) {
-    return [];
-  }
-
-  return env.PROXY_URLS.split(",")
-    .map((url) => url.trim())
-    .filter((url) => {
-      try {
-        // Basic URL validation for proxy endpoints
-        if (url.startsWith("http://") || url.startsWith("https://")) {
-          return true;
-        }
-        return false;
-      } catch {
-        // Invalid URL format, skip silently
-        return false;
-      }
-    });
-}

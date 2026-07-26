@@ -4,6 +4,8 @@
  * Includes health tracking, response time weighting, and smart selection
  */
 
+import { logger } from "./logger";
+
 /**
  * Collection of realistic browser user agents for fingerprinting
  */
@@ -144,9 +146,7 @@ export function recordProxyFailure(proxyUrl: string): void {
   if (health.consecutiveFailures >= HEALTH_CONFIG.FAILURE_THRESHOLD) {
     health.isHealthy = false;
     health.markedUnhealthyAt = Date.now();
-    console.warn(
-      `Proxy marked unhealthy after ${health.consecutiveFailures} consecutive failures: ${proxyUrl}`
-    );
+    logger.warn(undefined, `Proxy marked unhealthy after ${health.consecutiveFailures} consecutive failures: ${proxyUrl}`);
   }
 }
 
@@ -245,7 +245,9 @@ export async function selectProxy(env: Env): Promise<ProxyEndpoint | null> {
     // Fallback to last candidate (shouldn't happen normally)
     return candidates[candidates.length - 1];
   } catch (error) {
-    console.error("Failed to select proxy:", error);
+    logger.error(undefined, "Failed to select proxy", {
+      metadata: { error: error instanceof Error ? error.message : String(error) },
+    });
     return null;
   }
 }

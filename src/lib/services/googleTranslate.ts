@@ -3,7 +3,7 @@
  * Provides Google Translate functionality with an STA-compatible API format
  */
 
-import { DEFAULT_RETRY_CONFIG, REQUEST_TIMEOUT } from "../config";
+import { DEFAULT_RETRY_CONFIG, PAYLOAD_LIMITS, REQUEST_TIMEOUT } from "../config";
 import { createErrorResponse } from "../errorHandler";
 import { logger } from "../logger";
 import {
@@ -57,9 +57,14 @@ function parseGoogleResponse(
  */
 export async function translateWithGoogle(
   params: RequestParams,
-  config?: Config & { env?: any; clientIP?: string }
+  config?: Config & { env?: Env; clientIP?: string }
 ): Promise<ResponseParams> {
   const { text, source_lang, target_lang } = params;
+
+  // Reject oversized text to prevent URL length issues with Google Translate
+  if (text.length > PAYLOAD_LIMITS.MAX_TEXT_LENGTH) {
+    return createStandardResponse(413, null);
+  }
 
   // Construct the request to Google Translate's internal API
   const googleApiUrl = new URL("https://translate.google.com/translate_a/single");
@@ -107,11 +112,11 @@ export async function translateWithGoogle(
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-          throw new Error(
+          const error = new Error(
             `Google Translate API responded with status ${response.status}`
           );
-          // Non-2xx throws an Error carrying the status via the message; the
-          // retry predicate checks `error.status`, so attach it below.
+          (error as { status?: number }).status = response.status;
+          throw error;
         }
 
         return (await response.json()) as GoogleTranslateBody;
@@ -126,7 +131,7 @@ export async function translateWithGoogle(
               REQUEST_TIMEOUT / 1000
             } seconds`
           );
-          (timeoutError as any).status = 408;
+          (timeoutError as { status?: number }).status = 408;
           throw timeoutError;
         }
 
@@ -136,7 +141,7 @@ export async function translateWithGoogle(
             ? error.message.match(/status (\d{3})/)
             : null;
         if (statusMatch) {
-          (error as any).status = Number(statusMatch[1]);
+          (error as { status?: number }).status = Number(statusMatch[1]);
         }
         throw error;
       }

@@ -124,7 +124,7 @@ describe("Validation Module", () => {
     });
 
     it("should handle null input", () => {
-      const result = validateTranslationRequest(null);
+      const result = validateTranslationRequest(null as unknown as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(
@@ -133,7 +133,7 @@ describe("Validation Module", () => {
     });
 
     it("should handle non-object input", () => {
-      const result = validateTranslationRequest("string input");
+      const result = validateTranslationRequest("string input" as unknown as Record<string, unknown>);
 
       expect(result.isValid).toBe(false);
       expect(result.errors).toContain(

@@ -7,14 +7,7 @@
 import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
 import { getProxyEndpoints } from "./proxyManager";
 import { checkSlidingWindowRateLimit } from "./slidingWindowRateLimit";
-
-// Import types from worker-configuration for consistency
-interface Env {
-  CACHE_KV: KVNamespace;
-  RATE_LIMIT_KV: KVNamespace;
-  ANALYTICS: AnalyticsEngineDataset;
-  PROXY_URLS?: string;
-}
+import { SECURITY_CONFIG } from "./securityConfig";
 
 interface RateLimitEntry {
   tokens: number;
@@ -183,8 +176,10 @@ export async function checkRateLimit(
 
     return true;
   } catch (error) {
-    // Rate limit check failed, allow request to maintain service availability
-    return true;
+    // Rate limit check failed — honor FAIL_SAFE_ON_ERROR. When false (default),
+    // reject the request to prevent abuse during outages; when true, allow
+    // through to maintain availability.
+    return SECURITY_CONFIG.FAIL_SAFE_ON_ERROR;
   }
 }
 
@@ -341,7 +336,7 @@ export async function checkProxyRateLimit(
 
     return true;
   } catch (error) {
-    // Proxy rate limit check failed, allow request to maintain service availability
-    return true;
+    // Proxy rate limit check failed — honor FAIL_SAFE_ON_ERROR.
+    return SECURITY_CONFIG.FAIL_SAFE_ON_ERROR;
   }
 }

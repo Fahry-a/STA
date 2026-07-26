@@ -1,7 +1,7 @@
 /**
  * Two-level caching system: In-memory LRU + Cloudflare KV
  * Provides fast access to cached translations with fallback to persistent storage
- * In-memory cache uses LRU eviction to prevent unbounded memory growth
+ * In-memory cache uses a doubly-linked list for O(1) LRU eviction
  */
 
 import { logger } from "./logger";
@@ -13,71 +13,110 @@ const CACHE_TTL = 3600; // 1 hour in seconds
 const MEMORY_CACHE_MAX_SIZE = 1000; // Maximum items in memory cache before LRU eviction
 
 /**
- * LRU (Least Recently Used) cache implementation
- * Extends Map to add max-size eviction with automatic cleanup
- * When the cache exceeds maxSize, the least recently used entry is evicted
+ * Doubly-linked list node for O(1) LRU operations
  */
-class LRUCache<V> extends Map<string, V> {
+class LRUNode<V> {
+  key: string;
+  value: V;
+  prev: LRUNode<V> | null = null;
+  next: LRUNode<V> | null = null;
+
+  constructor(key: string, value: V) {
+    this.key = key;
+    this.value = value;
+  }
+}
+
+/**
+ * LRU (Least Recently Used) cache implementation using a doubly-linked list
+ * and a Map for O(1) get/set/evict operations
+ */
+class LRUCache<V> {
   private maxSize: number;
+  private map: Map<string, LRUNode<V>> = new Map();
+  private head: LRUNode<V>; // dummy head (most-recent side)
+  private tail: LRUNode<V>; // dummy tail (least-recent side)
 
   constructor(maxSize: number) {
-    super();
     this.maxSize = maxSize;
+    this.head = new LRUNode("", null as unknown as V);
+    this.tail = new LRUNode("", null as unknown as V);
+    this.head.next = this.tail;
+    this.tail.prev = this.head;
   }
 
-  /**
-   * Set a value in the cache, evicting the LRU entry if at capacity
-   * @param key The cache key
-   * @param value The value to store
-   * @returns This map instance (for chaining)
-   */
-  set(key: string, value: V): this {
-    // If key already exists, delete it first to update its position in the iteration order
-    if (super.has(key)) {
-      super.delete(key);
-    }
-
-    // Evict the oldest (least recently used) entry if at capacity
-    if (super.size >= this.maxSize) {
-      // Map iterators iterate in insertion order — first key is the LRU
-      const oldestKey = super.keys().next().value;
-      if (oldestKey !== undefined) {
-        super.delete(oldestKey);
-      }
-    }
-
-    return super.set(key, value);
+  get size(): number {
+    return this.map.size;
   }
 
-  /**
-   * Get a value from the cache, promoting it to most-recently-used on access
-   * @param key The cache key
-   * @returns The cached value or undefined
-   */
+  private addToFront(node: LRUNode<V>): void {
+    node.next = this.head.next;
+    node.prev = this.head;
+    this.head.next!.prev = node;
+    this.head.next = node;
+  }
+
+  private removeNode(node: LRUNode<V>): void {
+    node.prev!.next = node.next;
+    node.next!.prev = node.prev;
+  }
+
+  private moveToFront(node: LRUNode<V>): void {
+    this.removeNode(node);
+    this.addToFront(node);
+  }
+
+  private evict(): void {
+    const lru = this.tail.prev;
+    if (lru && lru !== this.head) {
+      this.removeNode(lru);
+      this.map.delete(lru.key);
+    }
+  }
+
+  set(key: string, value: V): void {
+    const existing = this.map.get(key);
+    if (existing) {
+      existing.value = value;
+      this.moveToFront(existing);
+      return;
+    }
+
+    if (this.map.size >= this.maxSize) {
+      this.evict();
+    }
+
+    const node = new LRUNode(key, value);
+    this.map.set(key, node);
+    this.addToFront(node);
+  }
+
   get(key: string): V | undefined {
-    const value = super.get(key);
-    if (value !== undefined) {
-      // Re-insert to move to the end (most recently used position)
-      super.delete(key);
-      super.set(key, value);
-    }
-    return value;
+    const node = this.map.get(key);
+    if (!node) return undefined;
+    this.moveToFront(node);
+    return node.value;
   }
 
-  /**
-   * Check if a key exists in the cache, promoting it on access
-   * @param key The cache key
-   * @returns true if the key exists
-   */
   has(key: string): boolean {
-    const exists = super.has(key);
-    if (exists) {
-      // Promote to most recently used
-      const value = super.get(key)!;
-      super.delete(key);
-      super.set(key, value);
-    }
-    return exists;
+    const node = this.map.get(key);
+    if (!node) return false;
+    this.moveToFront(node);
+    return true;
+  }
+
+  delete(key: string): boolean {
+    const node = this.map.get(key);
+    if (!node) return false;
+    this.removeNode(node);
+    this.map.delete(key);
+    return true;
+  }
+
+  clear(): void {
+    this.map.clear();
+    this.head.next = this.tail;
+    this.tail.prev = this.head;
   }
 }
 
@@ -86,6 +125,12 @@ class LRUCache<V> extends Map<string, V> {
  * Bounded to MEMORY_CACHE_MAX_SIZE entries to prevent memory leaks
  */
 const memoryCache = new LRUCache<CacheEntry>(MEMORY_CACHE_MAX_SIZE);
+
+/**
+ * Track all cache keys for gradual TTL-based eviction during scheduled cleanup.
+ * The LRU class doesn't expose an iterator, so we maintain a parallel key set.
+ */
+const trackedCacheKeys = new Set<string>();
 
 /**
  * Generate a unique cache key for translation requests
@@ -187,6 +232,15 @@ export async function setCachedTranslation(
   try {
     // Store in memory LRU cache (automatically evicts LRU entry if at capacity)
     memoryCache.set(key, entry);
+    trackedCacheKeys.add(key);
+
+    // Bound the tracked keys set to match cache size
+    while (trackedCacheKeys.size > MEMORY_CACHE_MAX_SIZE) {
+      const oldestKey = trackedCacheKeys.values().next().value;
+      if (oldestKey !== undefined) {
+        trackedCacheKeys.delete(oldestKey);
+      }
+    }
 
     // Store in KV cache (may fail, but don't let it break the response)
     try {
@@ -221,10 +275,29 @@ export function getMemoryCacheSize(): number {
 }
 
 /**
- * Clear the in-memory cache
- * Useful for testing or when memory needs to be freed
- * @returns void
+ * Gradually expire stale entries from the in-memory cache
+ * Instead of clearing the entire cache (which causes a cold-start penalty),
+ * this removes only entries older than the TTL, preserving recent hot entries.
+ * @returns Number of entries removed
  */
-export function clearMemoryCache(): void {
-  memoryCache.clear();
+export function clearMemoryCache(): number {
+  let removed = 0;
+  const now = Date.now();
+  const ttlMs = CACHE_TTL * 1000;
+
+  const keysToRemove: string[] = [];
+  for (const key of trackedCacheKeys) {
+    const entry = memoryCache.get(key);
+    if (!entry || now - entry.timestamp > ttlMs) {
+      keysToRemove.push(key);
+    }
+  }
+
+  for (const key of keysToRemove) {
+    memoryCache.delete(key);
+    trackedCacheKeys.delete(key);
+    removed++;
+  }
+
+  return removed;
 }
