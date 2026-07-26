@@ -35,7 +35,7 @@ export {
   validateLanguageCode,
   timingSafeEqual,
 } from "./security";
-export { SECURITY_CONFIG, VALIDATION_PATTERNS, SECURITY_ERRORS } from "./securityConfig";
+export { SECURITY_CONFIG } from "./securityConfig";
 export { translateWithGoogle } from "./services/googleTranslate";
 export {
   startPerformanceTracking,

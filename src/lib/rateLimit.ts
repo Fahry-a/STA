@@ -124,9 +124,10 @@ export async function checkRateLimit(
         const existing = (await env.RATE_LIMIT_KV.get(
           key,
           "json"
-        )) as RateLimitEntry | null;
+        )) as { tokens: number; lastRefill: number; lastUpdate?: number } | null;
         if (existing) {
-          const timePassed = (now - existing.lastRefill) / 1000;
+          const lastActive = existing.lastUpdate ?? existing.lastRefill;
+          const timePassed = (now - lastActive) / 1000;
           tokens = Math.min(
             maxTokens,
             existing.tokens + timePassed * rateLimits.REFILL_RATE
@@ -148,9 +149,11 @@ export async function checkRateLimit(
       });
 
       // Async KV update
-      env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-        expirationTtl: 3600,
-      }).catch(() => {
+      env.RATE_LIMIT_KV.put(
+        key,
+        JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+        { expirationTtl: 3600 }
+      ).catch(() => {
         // KV update failed, continue silently
       });
 
@@ -168,9 +171,11 @@ export async function checkRateLimit(
     });
 
     // Async KV update
-    env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-      expirationTtl: 3600,
-    }).catch(() => {
+    env.RATE_LIMIT_KV.put(
+      key,
+      JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+      { expirationTtl: 3600 }
+    ).catch(() => {
       // KV update failed, continue silently
     });
 
@@ -309,9 +314,11 @@ export async function checkProxyRateLimit(
       });
 
       // Async KV update without blocking response
-      env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-        expirationTtl: 3600,
-      }).catch(() => {
+      env.RATE_LIMIT_KV.put(
+        key,
+        JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+        { expirationTtl: 3600 }
+      ).catch(() => {
         // KV update failed, continue silently
       });
 
@@ -329,9 +336,11 @@ export async function checkProxyRateLimit(
     });
 
     // Async KV update without blocking response
-    env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-      expirationTtl: 3600,
-    }).catch(() => {
+    env.RATE_LIMIT_KV.put(
+      key,
+      JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+      { expirationTtl: 3600 }
+    ).catch(() => {
       // KV update failed, continue silently
     });
 

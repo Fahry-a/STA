@@ -44,7 +44,6 @@ function pushMetric(entry: PerformanceMetrics): void {
     tail = (tail + 1) % MAX_METRICS;
     count++;
   } else {
-    // Buffer full — overwrite oldest entry and advance head
     metrics[tail] = entry;
     tail = (tail + 1) % MAX_METRICS;
     head = (head + 1) % MAX_METRICS;
@@ -52,18 +51,35 @@ function pushMetric(entry: PerformanceMetrics): void {
 }
 
 /**
- * Get all metrics in chronological order from the circular buffer.
+ * Find a metric by requestId without reconstructing the full array.
  */
-function getAllMetrics(): PerformanceMetrics[] {
-  if (count === 0) return [];
+function findMetric(requestId: string): PerformanceMetrics | undefined {
+  if (count === 0) return undefined;
   if (count < MAX_METRICS) {
-    return metrics.slice(0, count);
+    for (let i = 0; i < count; i++) {
+      if (metrics[i].requestId === requestId) return metrics[i];
+    }
+  } else {
+    for (let i = 0; i < MAX_METRICS; i++) {
+      const idx = (head + i) % MAX_METRICS;
+      if (metrics[idx].requestId === requestId) return metrics[idx];
+    }
   }
-  // Buffer full: head..MAX_METRICS then 0..head
-  return [
-    ...metrics.slice(head, MAX_METRICS),
-    ...metrics.slice(0, head),
-  ];
+  return undefined;
+}
+
+/**
+ * Get the last n metrics without full array reconstruction.
+ */
+function getLastN(n: number): PerformanceMetrics[] {
+  if (count === 0) return [];
+  const take = Math.min(n, count);
+  const result: PerformanceMetrics[] = [];
+  for (let i = 0; i < take; i++) {
+    const idx = (tail - take + i + MAX_METRICS) % MAX_METRICS;
+    result.push(metrics[idx]);
+  }
+  return result;
 }
 
 /**
@@ -101,8 +117,7 @@ export function updatePerformanceMetrics(
   requestId: string,
   updates: Partial<PerformanceMetrics>
 ): void {
-  const all = getAllMetrics();
-  const metric = all.find((m) => m.requestId === requestId);
+  const metric = findMetric(requestId);
   if (metric) {
     Object.assign(metric, updates);
   }
@@ -119,8 +134,7 @@ export function endPerformanceTracking(
   requestId: string,
   success: boolean
 ): void {
-  const all = getAllMetrics();
-  const metric = all.find((m) => m.requestId === requestId);
+  const metric = findMetric(requestId);
   if (metric) {
     metric.endTime = Date.now();
     metric.duration = metric.endTime - metric.startTime;
@@ -134,10 +148,9 @@ export function endPerformanceTracking(
  * @returns Performance statistics object or null if no metrics available
  */
 export function getPerformanceStats() {
-  const all = getAllMetrics();
-  if (all.length === 0) return null;
+  if (count === 0) return null;
 
-  const recent = all.slice(-100); // Last 100 requests for analysis
+  const recent = getLastN(100); // Last 100 requests for analysis
   const successful = recent.filter((m) => m.success);
   const failed = recent.filter((m) => !m.success);
 

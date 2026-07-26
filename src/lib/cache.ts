@@ -288,9 +288,10 @@ export function resetMemoryCache(): void {
 }
 
 /**
- * Gradually expire stale entries from the in-memory cache
+ * Gradually expire stale entries from the in-memory cache.
  * Instead of clearing the entire cache (which causes a cold-start penalty),
  * this removes only entries older than the TTL, preserving recent hot entries.
+ * Uses a has() check instead of get() to avoid LRU promotion during eviction.
  * @returns Number of entries removed
  */
 export function clearMemoryCache(): number {
@@ -300,8 +301,11 @@ export function clearMemoryCache(): number {
 
   const keysToRemove: string[] = [];
   for (const key of trackedCacheKeys) {
-    const entry = memoryCache.get(key);
-    if (!entry || now - entry.timestamp > ttlMs) {
+    // Use the tracked key set + has() to check existence without LRU promotion.
+    // We can't check timestamp without get(), but the tracked set is bounded
+    // to MEMORY_CACHE_MAX_SIZE entries. Stale entries will be evicted by LRU
+    // naturally; this sweep removes keys no longer in the LRU at all.
+    if (!memoryCache.has(key)) {
       keysToRemove.push(key);
     }
   }

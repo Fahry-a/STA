@@ -419,6 +419,8 @@ describe("Main App", () => {
       const r = await app.fetch(new Request("http://localhost/translate"), mockEnv);
       expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
       expect(r.headers.get("X-Frame-Options")).toBe("DENY");
+      // X-XSS-Protection is deprecated and removed
+      expect(r.headers.get("X-XSS-Protection")).toBeNull();
     });
   });
 

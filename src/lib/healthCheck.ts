@@ -73,24 +73,17 @@ async function checkProxyHealth(env: any): Promise<HealthCheckItem> {
 
 /**
  * Check cache health
+ * Uses a lightweight read-only check instead of writing to KV
  */
 async function checkCacheHealth(env: any): Promise<HealthCheckItem> {
   try {
-    // Try to read/write to KV
-    await env.CACHE_KV.put("_health_check", "ok", { expirationTtl: 60 });
-    const value = await env.CACHE_KV.get("_health_check");
-
-    if (value === "ok") {
-      return {
-        status: "healthy",
-        message: "Cache KV is accessible",
-      };
-    } else {
-      return {
-        status: "degraded",
-        message: "Cache KV read/write inconsistency",
-      };
-    }
+    // Attempt a read-only KV operation to verify accessibility
+    const value = await env.CACHE_KV.get("_health_check_nonexistent");
+    // If we get here (even with null), KV is accessible
+    return {
+      status: "healthy",
+      message: "Cache KV is accessible",
+    };
   } catch (error) {
     return {
       status: "unhealthy",
@@ -102,14 +95,15 @@ async function checkCacheHealth(env: any): Promise<HealthCheckItem> {
 
 /**
  * Check rate limiter health
+ * Uses a lightweight check without consuming real rate-limit tokens
  */
 async function checkRateLimitHealth(env: any): Promise<HealthCheckItem> {
   try {
-    const allowed = await checkRateLimit("_health_check", env);
+    // Verify the KV namespace is accessible (rate limiter depends on it)
+    await env.RATE_LIMIT_KV.get("_health_check_nonexistent");
     return {
       status: "healthy",
-      message: "Rate limiter is operational",
-      details: { allowed },
+      message: "Rate limiter KV is accessible",
     };
   } catch (error) {
     return {

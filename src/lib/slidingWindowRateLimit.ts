@@ -179,6 +179,8 @@ export function checkSlidingWindowRateLimit(
     entries.push({ timestamp: now, count: 1 });
     touchWindowStorage(key, entries);
   }
+  // Denied requests are not stored — avoids bloating the map with entries
+  // from clients who are already rate-limited.
 
   // Calculate reset time
   const resetMs = (currentWindowIndex + 1) * subWindowSize - now;

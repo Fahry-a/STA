@@ -67,6 +67,7 @@ export default worker;
 
 /**
  * Apply security headers to every response.
+ * Must be registered before route definitions so it covers all routes.
  */
 app.use("*", async (c, next) => {
   await next();

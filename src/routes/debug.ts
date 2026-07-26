@@ -98,16 +98,10 @@ export async function handleDebug(c: DebugContext) {
         createStandardResponse(200, JSON.stringify(debugInfo)),
         200
       );
-    } catch (buildError) {
-      const errorMessage =
-        buildError instanceof Error
-          ? buildError.message
-          : "Request build failed";
-      return c.json(createStandardResponse(400, errorMessage), 400);
+    } catch {
+      return c.json(createStandardResponse(400, "Request build failed"), 400);
     }
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
-    return c.json(createStandardResponse(400, errorMessage), 400);
+  } catch {
+    return c.json(createStandardResponse(400, "Invalid request"), 400);
   }
 }

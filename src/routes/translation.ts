@@ -22,6 +22,7 @@ import {
 } from "../lib";
 import { logger, generateRequestId } from "../lib/logger";
 import { createErrorResponse } from "../lib/errorHandler";
+import { validateTranslationRequest } from "../lib/validation";
 
 type TranslationContext = {
   env: Env;
@@ -129,8 +130,7 @@ export async function handleTranslation(
       );
     }
 
-    // Import validation and run it
-    const { validateTranslationRequest } = await import("../lib/validation");
+    // Run the structured validator for the canonical request checks
     const validation = validateTranslationRequest(params as Record<string, unknown>);
     const structureErrors = validation.errors.filter(
       (err: string) =>
