@@ -15,7 +15,7 @@ export interface LogEntry {
   duration?: number;
   cacheHit?: boolean;
   proxyUrl?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -45,7 +45,7 @@ export function createLogEntry(
  * Write log to Analytics Engine for persistent storage
  * Falls back to console output when Analytics Engine is unavailable
  */
-export function writeLog(env: any, entry: LogEntry): void {
+export function writeLog(env: Env | undefined, entry: LogEntry): void {
   // Always emit to console for Cloudflare Workers observability
   const consoleMsg = `[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`;
   if (entry.level === "error") {
@@ -86,19 +86,19 @@ export function writeLog(env: any, entry: LogEntry): void {
  * Convenience logging functions
  */
 export const logger = {
-  info: (env: any, message: string, context?: Partial<LogEntry>) => {
+  info: (env: Env | undefined, message: string, context?: Partial<LogEntry>) => {
     const entry = createLogEntry("info", message, context);
     writeLog(env, entry);
   },
-  warn: (env: any, message: string, context?: Partial<LogEntry>) => {
+  warn: (env: Env | undefined, message: string, context?: Partial<LogEntry>) => {
     const entry = createLogEntry("warn", message, context);
     writeLog(env, entry);
   },
-  error: (env: any, message: string, context?: Partial<LogEntry>) => {
+  error: (env: Env | undefined, message: string, context?: Partial<LogEntry>) => {
     const entry = createLogEntry("error", message, context);
     writeLog(env, entry);
   },
-  debug: (env: any, message: string, context?: Partial<LogEntry>) => {
+  debug: (env: Env | undefined, message: string, context?: Partial<LogEntry>) => {
     const entry = createLogEntry("debug", message, context);
     writeLog(env, entry);
   },

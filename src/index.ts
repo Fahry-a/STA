@@ -3,6 +3,7 @@
  */
 
 import { Hono } from "hono";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import {
   type V2ValidationResult,
   clearMemoryCache,
@@ -30,6 +31,7 @@ import {
   isAdminAuthorized,
   validateLanguageCode,
 } from "./lib/security";
+import { SECURITY_CONFIG } from "./lib/securityConfig";
 import { translateWithGoogle } from "./lib/services/googleTranslate";
 import {
   createStandardResponse,
@@ -37,6 +39,11 @@ import {
   type V2RequestParams,
 } from "./lib/types";
 import { checkCombinedRateLimit } from "./lib/rateLimit";
+import {
+  startPerformanceTracking,
+  updatePerformanceMetrics,
+  endPerformanceTracking,
+} from "./lib/performance";
 
 /**
  * Initialize Hono app with environment bindings
@@ -53,7 +60,7 @@ function isDebugModeEnabled(value?: string): boolean {
 
 /**
  * Scheduled event handler for periodic maintenance tasks
- * Executes every 5 minutes as configured in wrangler.jsonc
+ * Executes every 10 minutes as configured in wrangler.jsonc
  * @param event The scheduled event object
  * @param env Environment bindings
  * @param ctx Execution context for background tasks
@@ -116,11 +123,17 @@ export default worker;
  * @param provider - Translation provider ('deepl' or 'google')
  * @returns Translation response
  */
-async function handleTranslation(c: any, provider: "deepl" | "google") {
+async function handleTranslation(
+  c: { env: Env; req: { json: () => Promise<unknown>; header: (name: string) => string | undefined; raw: Request }; json: (data: unknown, status?: number) => Response },
+  provider: "deepl" | "google"
+) {
   const env = c.env;
   const clientIP = getSecureClientIP(c.req.raw) || "unknown";
   const requestId = generateRequestId();
   const startTime = Date.now();
+
+  // Start performance tracking
+  const perfRequestId = startPerformanceTracking(`/${provider}`);
 
   logger.info(env, "Translation request started", {
     requestId,
@@ -129,7 +142,7 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
   });
 
   try {
-    // Validate Content-Type header before parsing
+    // Validate Content-Type header
     const contentType = c.req.header("Content-Type") || "";
     if (!contentType.includes("application/json")) {
       logger.warn(env, "Invalid Content-Type", {
@@ -138,25 +151,37 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
         clientIP,
         metadata: { contentType },
       });
+      updatePerformanceMetrics(perfRequestId, { success: false });
+      endPerformanceTracking(perfRequestId, false);
       return c.json(createStandardResponse(415, null), 415);
     }
 
-    // Check Content-Length to reject oversized bodies early
+    // Check Content-Length at middleware level to reject oversized bodies early
     const contentLength = c.req.header("Content-Length");
     if (contentLength && parseInt(contentLength, 10) > PAYLOAD_LIMITS.MAX_REQUEST_SIZE) {
+      logger.warn(env, "Request body too large", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { contentLength },
+      });
+      updatePerformanceMetrics(perfRequestId, { success: false });
+      endPerformanceTracking(perfRequestId, false);
       return c.json(createStandardResponse(413, null), 413);
     }
 
     // Parse request parameters with better error handling
-    let params;
+    let params: Record<string, unknown>;
     try {
-      params = await c.req.json();
+      params = await c.req.json() as Record<string, unknown>;
     } catch (parseError) {
       logger.warn(env, "Request parse failed", {
         requestId,
         endpoint: `/${provider}`,
         clientIP,
       });
+      updatePerformanceMetrics(perfRequestId, { success: false });
+      endPerformanceTracking(perfRequestId, false);
       return c.json(createStandardResponse(400, null), 400);
     }
 
@@ -179,7 +204,7 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       return c.json(createStandardResponse(400, null), 400);
     }
 
-    const sanitizedText = params.text;
+    const sanitizedText = params.text as string;
 
     // Reject oversized text instead of silently truncating it. Silently slicing
     // input would return a translation of only the first 5000 chars with a 200,
@@ -215,7 +240,7 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
     // if the only errors are language-code rules (not structure/text errors),
     // we let the DeepL-specific validateLanguageCode path below make the final
     // language decision instead.
-    const validation = validateTranslationRequest(params);
+    const validation = validateTranslationRequest(params as Record<string, unknown>);
     const structureErrors = validation.errors.filter(
       (err: string) =>
         !err.toLowerCase().includes("language") &&
@@ -225,10 +250,10 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
 
     // Validate and sanitize language parameters
     const sourceLang = params.source_lang
-      ? validateLanguageCode(params.source_lang)
+      ? validateLanguageCode(params.source_lang as string)
       : "auto";
     const targetLang = params.target_lang
-      ? validateLanguageCode(params.target_lang)
+      ? validateLanguageCode(params.target_lang as string)
       : "en";
 
     if (
@@ -236,6 +261,8 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       !sourceLang ||
       !targetLang
     ) {
+      updatePerformanceMetrics(perfRequestId, { success: false });
+      endPerformanceTracking(perfRequestId, false);
       return c.json(createStandardResponse(400, null), 400);
     }
 
@@ -260,6 +287,8 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
         clientIP,
         metadata: { reason: rateLimitResult.reason },
       });
+      updatePerformanceMetrics(perfRequestId, { rateLimited: true, success: false });
+      endPerformanceTracking(perfRequestId, false);
       return c.json(createStandardResponse(429, null), 429);
     }
 
@@ -281,6 +310,8 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
         duration: Date.now() - startTime,
         cacheHit: true,
       });
+      updatePerformanceMetrics(perfRequestId, { cacheHit: true, success: true });
+      endPerformanceTracking(perfRequestId, true);
       return c.json(
         createStandardResponse(
           200,
@@ -333,14 +364,21 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       );
     }
 
+    const duration = Date.now() - startTime;
     logger.info(env, "Translation request completed", {
       requestId,
       endpoint: `/${provider}`,
-      duration: Date.now() - startTime,
+      duration,
       cacheHit: false,
     });
 
-    return c.json(result, result.code as any);
+    updatePerformanceMetrics(perfRequestId, {
+      proxyUsed: provider === "deepl",
+      success: result.code === 200,
+    });
+    endPerformanceTracking(perfRequestId, result.code === 200);
+
+    return c.json(result, result.code as ContentfulStatusCode);
   } catch (error) {
     logger.error(env, "Translation request failed", {
       requestId,
@@ -351,12 +389,15 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
       },
     });
 
+    updatePerformanceMetrics(perfRequestId, { success: false });
+    endPerformanceTracking(perfRequestId, false);
+
     const errorResponse = createErrorResponse(error, {
       endpoint: `/${provider}`,
       clientIP,
     });
 
-    return c.json(errorResponse.response, errorResponse.httpStatus as any);
+    return c.json(errorResponse.response, errorResponse.httpStatus as ContentfulStatusCode);
   }
 }
 
@@ -463,18 +504,16 @@ app
         const requestBody = buildRequestBody(sanitizedParams);
         const parsedBody = JSON.parse(requestBody);
 
+        // Sanitize debug info: only return metadata, not the raw request body
+        // to prevent XSS if rendered in a browser context
         const debugInfo = {
           status: "Request format is valid",
-          client_ip: clientIP, // Safe to show in debug mode
-          generated_request: parsedBody,
-          sanitized_params: sanitizedParams, // Show sanitized version
           validation: {
             text_length: sanitizedText.length,
-            sanitized_text_length: sanitizedText.length,
             has_source_lang: !!sourceLang,
             has_target_lang: !!targetLang,
             request_id: parsedBody.id,
-            timestamp: parsedBody.params?.timestamp,
+            has_timestamp: typeof parsedBody.params?.timestamp === "number",
             method_format: requestBody.includes('"method" : "')
               ? "spaced"
               : "normal",
@@ -534,6 +573,18 @@ app
     const env = c.env;
     const clientIP = getSecureClientIP(c.req.raw) || "unknown";
 
+    // Validate Content-Type header
+    const contentType = c.req.header("Content-Type") || "";
+    if (!contentType.includes("application/json")) {
+      return c.json(createV2Response(415, [], { apr: false }), 415);
+    }
+
+    // Check Content-Length at middleware level
+    const contentLength = c.req.header("Content-Length");
+    if (contentLength && parseInt(contentLength, 10) > PAYLOAD_LIMITS.MAX_REQUEST_SIZE) {
+      return c.json(createV2Response(413, [], { apr: false }), 413);
+    }
+
     // Hoisted above the try so the catch path can report the APR intent that was
     // validated before the throw. The parse-failure path genuinely has no
     // validation object yet, so it reports apr=false (the field is always a
@@ -542,9 +593,9 @@ app
 
     try {
       // Parse request body
-      let params: V2RequestParams;
+      let params: Record<string, unknown>;
       try {
-        params = await c.req.json();
+      params = (await c.req.json()) as Record<string, unknown>;
       } catch (parseError) {
         return c.json(createV2Response(400, [], { apr: false }), 400);
       }
@@ -593,7 +644,7 @@ app
         clientIP,
       });
 
-      return c.json(result, result.code as any);
+      return c.json(result, result.code as ContentfulStatusCode);
     } catch (error) {
       const errorResponse = createErrorResponse(error, {
         endpoint: "/v2/translate",
@@ -607,7 +658,7 @@ app
         createV2Response(errorResponse.httpStatus, [], {
           apr: validation?.sanitizedInput?.APR ?? false,
         }),
-        errorResponse.httpStatus as any
+        errorResponse.httpStatus as ContentfulStatusCode
       );
     }
   })

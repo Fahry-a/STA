@@ -17,7 +17,7 @@ import {
 } from "./v2Validation";
 
 interface V2TranslateConfig {
-  env: any;
+  env: Env;
   clientIP: string;
 }
 
@@ -69,7 +69,7 @@ async function translateWithAPR(
   texts: string[],
   source_lang: string,
   target_lang: string,
-  env: any,
+  env: Env,
   clientIP: string,
   apr: boolean
 ): Promise<V2ResponseParams> {
@@ -131,7 +131,7 @@ async function translateCombined(
   texts: string[],
   source_lang: string,
   target_lang: string,
-  env: any,
+  env: Env,
   clientIP: string,
   apr: boolean
 ): Promise<V2ResponseParams> {

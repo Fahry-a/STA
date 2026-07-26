@@ -288,7 +288,7 @@ function buildRequestBody(data: RequestParams) {
  */
 async function query(
   params: RequestParams,
-  config?: Config & { env?: any }
+  config?: Config & { env?: Env }
 ): Promise<ResponseParams> {
   if (!params?.text) {
     return createStandardResponse(
@@ -364,7 +364,7 @@ async function query(
             const error = new Error(
               "Too many requests, your IP has been blocked by DeepL temporarily, please don't request it frequently in a short time"
             );
-            (error as any).status = 429;
+            (error as { status?: number }).status = 429;
             throw error;
           }
 
@@ -381,7 +381,7 @@ async function query(
             }
 
             const error = new Error(errorMessage);
-            (error as any).status = response.status;
+            (error as { status?: number }).status = response.status;
             throw error;
           }
 
@@ -408,7 +408,7 @@ async function query(
                 REQUEST_TIMEOUT / 1000
               } seconds to ${endpoint}`
             );
-            (timeoutError as any).status = 408;
+            (timeoutError as { status?: number }).status = 408;
             throw timeoutError;
           }
           throw error;
@@ -429,7 +429,7 @@ async function query(
         }
 
         const error = new Error(errorMessage);
-        (error as any).status = response.status;
+        (error as { status?: number }).status = response.status;
         throw error;
       }
 
@@ -444,13 +444,13 @@ async function query(
               : String(parseError)
           }`
         );
-        (error as any).code = 500;
+        (error as { code?: number }).code = 500;
         throw error;
       }
       if ("error" in result && result.error) {
-        const errorCode = (result.error as any).code;
+        const errorCode = (result.error as { code?: number }).code;
         const errorMessage =
-          (result.error as any).message || "Unknown DeepL API error";
+          (result.error as { message?: string }).message || "Unknown DeepL API error";
 
         // Handle specific DeepL error codes
         let enhancedMessage = errorMessage;
@@ -480,8 +480,8 @@ async function query(
         }
 
         const error = new Error(enhancedMessage);
-        (error as any).code = errorCode;
-        (error as any).originalMessage = errorMessage;
+        (error as { code?: number; originalMessage?: string }).code = errorCode;
+        (error as { code?: number; originalMessage?: string }).originalMessage = errorMessage;
         throw error;
       }
 
@@ -491,7 +491,7 @@ async function query(
         !result.result.texts.length
       ) {
         const error = new Error("Invalid response structure from DeepL API");
-        (error as any).code = 500;
+        (error as { code?: number }).code = 500;
         throw error;
       }
 
@@ -505,7 +505,7 @@ async function query(
         normalizeLanguageCode(params.target_lang)
       );
     }, retryOptions);
-  } catch (error: any) {
+  } catch (error: unknown) {
     const errorDetails = createErrorResponse(error, {
       endpoint: config?.proxyEndpoint,
     });

@@ -3,8 +3,9 @@ info:
   title: STA API
   version: 1.0.0
   description: |
-    Free translation API powered by DeepL and Google Translate.
+    Free serverless translation API powered by DeepL and Google Translate.
     No API keys required for translation endpoints.
+    Runs on Cloudflare Workers with dual-layer caching and proxy rotation.
   contact:
     name: STA
     url: https://github.com/Fahry-a/STA
@@ -23,6 +24,7 @@ paths:
       description: |
         High-quality translation using DeepL's neural machine translation.
         Supports 27+ languages with auto-detection.
+        Content-Type must be application/json. Max text length: 5000 chars.
       tags: [Translation]
       requestBody:
         required: true
@@ -50,11 +52,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/TranslationResponse'
         '400':
-          description: Invalid request
+          description: Invalid request (bad JSON, missing fields, validation error)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/TranslationResponse'
+        '408':
+          description: Request timeout (upstream proxy did not respond in time)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '413':
+          description: Payload too large (text exceeds 5000 chars or body > 32KB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '415':
+          description: Unsupported Media Type (Content-Type must be application/json)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
         '429':
           description: Rate limit exceeded
           headers:
@@ -73,14 +93,95 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/TranslationResponse'
+    get:
+      summary: GET method hint
+      description: Returns "Please use POST method :)"
+      tags: [Translation]
+      responses:
+        '200':
+          description: Informational text
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "Please use POST method :)"
 
   /google:
     post:
       summary: Translate text using Google Translate
       description: |
-        Wide language support using Google Translate.
+        Wide language support using Google Translate (100+ languages).
         Fast processing with extensive language coverage.
+        Content-Type must be application/json. Max text length: 5000 chars.
+      tags: [Translation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationRequest'
+            examples:
+              basic:
+                summary: Translate to Japanese
+                value:
+                  text: "Hello, world!"
+                  target_lang: "JA"
+      responses:
+        '200':
+          description: Successful translation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '408':
+          description: Request timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '415':
+          description: Unsupported Media Type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+    get:
+      summary: GET method hint
+      description: Returns "Please use POST method :)"
+      tags: [Translation]
+      responses:
+        '200':
+          description: Informational text
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /translate:
+    post:
+      summary: Translate text (legacy endpoint)
+      description: |
+        Legacy translation endpoint — equivalent to /deepl.
+        Kept for backward compatibility.
       tags: [Translation]
       requestBody:
         required: true
@@ -95,6 +196,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TranslationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '415':
+          description: Unsupported Media Type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+    get:
+      summary: GET method hint
+      description: Returns "Please use POST method :)"
+      tags: [Translation]
+      responses:
+        '200':
+          description: Informational text
+          content:
+            text/plain:
+              schema:
+                type: string
 
   /v2/translate:
     post:
@@ -103,6 +233,7 @@ paths:
         Batch translation endpoint with APR (Array Per Request) support.
         - APR=true (default): Each array item is sent as a separate DeepL request (max 10 items, 5000 chars each).
         - APR=false: All array items are combined into a single request with newline separators (5000 chars total).
+        Content-Type must be application/json.
       tags: [Translation]
       requestBody:
         required: true
@@ -114,7 +245,7 @@ paths:
               apr_true:
                 summary: Separate requests per item (APR=true)
                 value:
-                  text: ["Hello", "World", "Goodbye"]
+                  text: ["Hello, world!", "How are you?", "Goodbye!"]
                   APR: true
                   target_lang: "DE"
               apr_false:
@@ -123,6 +254,12 @@ paths:
                   text: ["Hello", "World", "Goodbye"]
                   APR: false
                   target_lang: "DE"
+              apr_string_false:
+                summary: APR as string "false" (JSON-friendly)
+                value:
+                  text: ["Hello", "World"]
+                  APR: "false"
+                  target_lang: "JA"
       responses:
         '200':
           description: All translations successful
@@ -137,7 +274,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/V2TranslationResponse'
         '400':
-          description: Invalid request
+          description: Invalid request (bad JSON, missing fields, validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+        '413':
+          description: Payload too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/V2TranslationResponse'
+        '415':
+          description: Unsupported Media Type
           content:
             application/json:
               schema:
@@ -149,10 +298,53 @@ paths:
               schema:
                 $ref: '#/components/schemas/V2TranslationResponse'
 
+  /debug:
+    post:
+      summary: Debug request format
+      description: |
+        Validate request format and inspect generated DeepL request body.
+        Disabled by default — requires DEBUG_MODE=true env var.
+        Returns 404 when disabled.
+      tags: [Debug]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TranslationRequest'
+            examples:
+              basic:
+                summary: Debug a translation request
+                value:
+                  text: "Hello, world!"
+                  source_lang: "EN"
+                  target_lang: "ZH"
+      responses:
+        '200':
+          description: Debug information (when DEBUG_MODE is enabled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '400':
+          description: Missing or invalid text parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+        '404':
+          description: Debug mode is disabled (DEBUG_MODE not set or false)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TranslationResponse'
+
   /health:
     get:
-      summary: Service health check
-      description: Returns comprehensive health status of all service components
+      summary: Comprehensive health check
+      description: |
+        Returns detailed health status of all service components:
+        proxies, cache KV, rate limiter, and performance metrics.
       tags: [Monitoring]
       responses:
         '200':
@@ -168,10 +360,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
 
+  /health/live:
+    get:
+      summary: Liveness check
+      description: Simple liveness probe (Kubernetes-style). Always returns 200.
+      tags: [Monitoring]
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alive
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /health/ready:
+    get:
+      summary: Readiness check
+      description: |
+        Returns whether the service can handle requests.
+        Returns 200 when ready, 503 when unhealthy.
+      tags: [Monitoring]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: false
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
   /metrics:
     get:
       summary: Service metrics
-      description: Returns performance and operational metrics. Requires admin API key.
+      description: |
+        Returns performance and operational metrics.
+        Requires X-API-Key header. Fails closed when key is unset.
       tags: [Monitoring]
       security:
         - ApiKeyAuth: []
@@ -183,7 +437,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MetricsResponse'
         '401':
-          description: Unauthorized - missing or invalid API key
+          description: Unauthorized — missing or invalid API key
           content:
             application/json:
               schema:
@@ -196,28 +450,109 @@ paths:
                     type: string
                     example: Unauthorized
 
+  /admin/warm-cache:
+    post:
+      summary: Manually trigger cache warming
+      description: |
+        Pre-populates the cache with popular translations.
+        Uses a KV-based leader lock to prevent thundering herd.
+        Requires X-API-Key header.
+      tags: [Admin]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Cache warming completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  data:
+                    type: object
+                    properties:
+                      warmed:
+                        type: integer
+                        example: 10
+                      failed:
+                        type: integer
+                        example: 0
+                      skipped:
+                        type: integer
+                        example: 0
+                  message:
+                    type: string
+                    example: "Cache warming completed: 10 warmed, 0 failed"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+
+  /admin/cache-status:
+    get:
+      summary: Get cache warming status
+      description: Returns the last cache warming status. Requires X-API-Key header.
+      tags: [Admin]
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Cache status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 200
+                  data:
+                    type: object
+                    description: Cache warming status details
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                  message:
+                    type: string
+
 components:
   schemas:
     TranslationRequest:
       type: object
-      required: [text, target_lang]
+      required: [text]
       properties:
         text:
           type: string
           maxLength: 5000
-          description: Text to translate
+          description: Text to translate (max 5000 characters)
           example: "Hello, world!"
         source_lang:
           type: string
           minLength: 2
           maxLength: 5
-          description: Source language code (ISO 639-1/639-2)
+          description: Source language code (ISO 639-1/639-2). Auto-detected if omitted.
           example: "EN"
         target_lang:
           type: string
           minLength: 2
           maxLength: 5
-          description: Target language code (ISO 639-1/639-2)
+          description: Target language code (ISO 639-1/639-2). Defaults to EN.
           example: "ZH"
 
     TranslationResponse:
@@ -225,12 +560,12 @@ components:
       properties:
         code:
           type: integer
-          description: HTTP status code
+          description: Status code (200=success, 400/408/413/415/429/500=error)
           example: 200
         data:
           type: string
           nullable: true
-          description: Translated text
+          description: Translated text (null on error)
           example: "你好，世界！"
         id:
           type: integer
@@ -239,12 +574,12 @@ components:
         source_lang:
           type: string
           nullable: true
-          description: Detected or specified source language
+          description: Detected or specified source language (uppercase, null on error)
           example: "EN"
         target_lang:
           type: string
           nullable: true
-          description: Target language
+          description: Target language (uppercase, null on error)
           example: "ZH"
 
     V2TranslationRequest:
@@ -256,19 +591,27 @@ components:
           items:
             type: string
           maxItems: 10
-          description: Array of texts to translate
-          example: ["Hello", "World"]
+          minItems: 1
+          description: Array of texts to translate (max 10 items, 5000 chars each)
+          example: ["Hello", "World", "Goodbye"]
         APR:
-          type: boolean
+          oneOf:
+            - type: boolean
+            - type: string
+              enum: ["true", "false"]
           default: true
-          description: Array Per Request - true sends each item separately, false combines all items. Accepts a boolean, or the string sentinels "true"/"false".
+          description: |
+            Array Per Request mode.
+            true (default): each item sent as separate DeepL request.
+            false: all items combined into single request with \n separator.
+            Accepts boolean or string "true"/"false" (case-insensitive).
         source_lang:
           type: string
           description: Source language code
           example: "EN"
         target_lang:
           type: string
-          description: Target language code
+          description: Target language code (required)
           example: "DE"
 
     V2TranslationResponse:
@@ -276,37 +619,49 @@ components:
       properties:
         code:
           type: integer
-          description: HTTP status code (200, 207 for partial, 400, 429, 500)
+          description: Status code (200=all success, 207=partial, 400/415/429/500=error)
           example: 200
         apr:
           type: boolean
-          description: Whether Array Per Request mode was applied (true = one upstream call per item, false = one combined call). false on responses where validation did not run.
+          description: |
+            Whether APR mode was applied.
+            true = one upstream call per item, false = one combined call.
+            false on pre-validation error responses.
           example: true
         data:
           type: array
           items:
-            type: object
-            properties:
-              text:
-                type: string
-                description: Translated text
-              index:
-                type: integer
-                description: Index in original request array
-              detected_source_lang:
-                type: string
-                nullable: true
-                description: Detected source language (APR=true only)
-              success:
-                type: boolean
-                description: Whether this individual translation succeeded
-              error:
-                type: string
-                nullable: true
-                description: Error message if translation failed
+            $ref: '#/components/schemas/V2TranslationResult'
         id:
           type: integer
           description: Unique request identifier
+          example: 1234567890
+
+    V2TranslationResult:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Translated text (empty string on failure)
+          example: "Hallo, Welt!"
+        index:
+          type: integer
+          description: Index in original request array
+          example: 0
+        detected_source_lang:
+          type: string
+          nullable: true
+          description: Detected source language (APR=true only)
+          example: "EN"
+        success:
+          type: boolean
+          description: Whether this individual translation succeeded
+          example: true
+        error:
+          type: string
+          nullable: true
+          description: Error message if translation failed
+          example: "Translation failed with code 429"
 
     ErrorResponse:
       type: object
@@ -335,11 +690,6 @@ components:
         timestamp:
           type: string
           format: date-time
-        version:
-          type: string
-        uptime:
-          type: integer
-          description: Uptime in seconds
         checks:
           type: object
           properties:
@@ -375,20 +725,52 @@ components:
               type: string
             uptime:
               type: integer
+              description: Uptime in seconds
             performance:
               type: object
+              nullable: true
+              description: Request performance stats (null if no tracked requests)
             proxy:
               type: object
+              properties:
+                totalEndpoints:
+                  type: integer
+                healthyEndpoints:
+                  type: integer
+                unhealthyEndpoints:
+                  type: integer
+                endpoints:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      healthy:
+                        type: boolean
+                      avgResponseTime:
+                        type: integer
+                      failureRate:
+                        type: integer
+            cache:
+              type: object
+              properties:
+                memoryCacheSize:
+                  type: integer
 
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: Admin API key for protected endpoints
+      description: Admin API key for protected endpoints (/metrics, /admin/*)
 
 tags:
   - name: Translation
-    description: Translation endpoints
+    description: Translation endpoints (DeepL, Google, V2 batch)
+  - name: Debug
+    description: Debug and troubleshooting endpoints
   - name: Monitoring
-    description: Health and metrics endpoints
+    description: Health checks and metrics
+  - name: Admin
+    description: Admin endpoints (require X-API-Key)

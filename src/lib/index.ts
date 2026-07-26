@@ -29,4 +29,4 @@ export * from "./textUtils";
 export * from "./types";
 
 // Named export for the main query function
-export { query };
+export { query, normalizeLanguageCode } from "./query";

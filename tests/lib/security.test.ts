@@ -3,58 +3,24 @@
  */
 
 import {
-  addSecurityHeaders,
+  SECURITY_HEADERS,
   getSecureClientIP,
   handleCORSPreflight,
   validateLanguageCode,
 } from "../../src/lib/security";
 
 describe("Security Module", () => {
-  describe("addSecurityHeaders", () => {
-    it("should add security headers to response", () => {
-      const mockResponse = {
-        headers: new Map(),
-      };
-
-      const result = addSecurityHeaders(mockResponse);
-
-      expect(result.headers.get("X-Content-Type-Options")).toBe("nosniff");
-      expect(result.headers.get("X-Frame-Options")).toBe("DENY");
-      expect(result.headers.get("X-XSS-Protection")).toBe("1; mode=block");
-      expect(result.headers.get("Referrer-Policy")).toBe(
+  describe("SECURITY_HEADERS", () => {
+    it("should contain required security headers", () => {
+      expect(SECURITY_HEADERS["X-Content-Type-Options"]).toBe("nosniff");
+      expect(SECURITY_HEADERS["X-Frame-Options"]).toBe("DENY");
+      expect(SECURITY_HEADERS["X-XSS-Protection"]).toBe("1; mode=block");
+      expect(SECURITY_HEADERS["Referrer-Policy"]).toBe(
         "strict-origin-when-cross-origin"
       );
-      expect(result.headers.get("Content-Security-Policy")).toContain(
+      expect(SECURITY_HEADERS["Content-Security-Policy"]).toContain(
         "default-src 'self'"
       );
-    });
-
-    it("should add CORS headers to response", () => {
-      const mockResponse = {
-        headers: new Map(),
-      };
-
-      const result = addSecurityHeaders(mockResponse);
-
-      expect(result.headers.get("Access-Control-Allow-Origin")).toBe("*");
-      expect(result.headers.get("Access-Control-Allow-Methods")).toBe(
-        "GET, POST, OPTIONS"
-      );
-      expect(result.headers.get("Access-Control-Allow-Headers")).toBe(
-        "Content-Type, Authorization"
-      );
-      expect(result.headers.get("Access-Control-Max-Age")).toBe("86400");
-    });
-
-    it("should preserve existing headers", () => {
-      const mockResponse = {
-        headers: new Map([["Custom-Header", "custom-value"]]),
-      };
-
-      const result = addSecurityHeaders(mockResponse);
-
-      expect(result.headers.get("Custom-Header")).toBe("custom-value");
-      expect(result.headers.get("X-Content-Type-Options")).toBe("nosniff");
     });
   });
 

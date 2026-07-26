@@ -19,6 +19,17 @@ jest.mock("../src/lib/security", () => ({
   validateLanguageCode: jest
     .fn()
     .mockImplementation((code) => code?.toLowerCase()),
+  SECURITY_HEADERS: {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+  },
+  isAdminAuthorized: jest.fn().mockReturnValue(true),
+}));
+
+jest.mock("../src/lib/securityConfig", () => ({
+  SECURITY_CONFIG: {
+    FAIL_SAFE_ON_ERROR: false,
+  },
 }));
 
 jest.mock("../src/lib/env", () => ({
@@ -29,6 +40,13 @@ jest.mock("../src/lib/performance", () => ({
   getPerformanceStats: jest
     .fn()
     .mockReturnValue({ requests: 100, avgResponseTime: 250 }),
+  startPerformanceTracking: jest.fn().mockReturnValue("perf-1"),
+  updatePerformanceMetrics: jest.fn(),
+  endPerformanceTracking: jest.fn(),
+}));
+
+jest.mock("../src/lib/rateLimit", () => ({
+  checkCombinedRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
 }));
 
 describe("Main App", () => {
@@ -126,8 +144,8 @@ describe("Main App", () => {
 
       const debugInfo = JSON.parse(result.data);
       expect(debugInfo.status).toBe("Request format is valid");
-      expect(debugInfo.client_ip).toBe("192.168.1.1");
-      expect(debugInfo.generated_request).toBeDefined();
+      expect(debugInfo.validation).toBeDefined();
+      expect(debugInfo.validation.request_id).toBeDefined();
     });
 
     it("should handle missing text parameter", async () => {
@@ -228,6 +246,7 @@ describe("Main App", () => {
     it("should handle invalid JSON", async () => {
       const request = new Request("http://localhost/translate", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: "invalid json",
       });
       const response = await app.fetch(request, mockEnv);

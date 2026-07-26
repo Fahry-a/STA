@@ -8,7 +8,12 @@ import { PAYLOAD_LIMITS } from "./config";
 export interface V2ValidationResult {
   isValid: boolean;
   errors: string[];
-  sanitizedInput?: any;
+  sanitizedInput?: {
+    text: string[];
+    APR: boolean;
+    source_lang: string;
+    target_lang: string;
+  };
 }
 
 const MAX_ARRAY_ITEMS = 10;
@@ -46,7 +51,7 @@ function parseApr(value: unknown): boolean {
 /**
  * Validate V2 batch translation request
  */
-export function validateV2Request(input: any): V2ValidationResult {
+export function validateV2Request(input: Record<string, unknown>): V2ValidationResult {
   const errors: string[] = [];
 
   // Check if input is an object
@@ -73,6 +78,8 @@ export function validateV2Request(input: any): V2ValidationResult {
     return { isValid: false, errors };
   }
 
+  const textArray = input.text as unknown[];
+
   // Default APR to true. Parse leniently so string sentinels ("true"/"false",
   // as clients commonly send over JSON where booleans may arrive quoted) are
   // honored — Boolean("false") is true, which previously made an APR:"false"
@@ -83,8 +90,8 @@ export function validateV2Request(input: any): V2ValidationResult {
   const sanitizedTexts: string[] = [];
   let totalLength = 0;
 
-  for (let i = 0; i < input.text.length; i++) {
-    const item = input.text[i];
+  for (let i = 0; i < textArray.length; i++) {
+    const item = textArray[i];
 
     if (typeof item !== "string") {
       errors.push(`text[${i}] must be a string`);
@@ -139,8 +146,8 @@ export function validateV2Request(input: any): V2ValidationResult {
     sanitizedInput: {
       text: sanitizedTexts,
       APR: apr,
-      source_lang: input.source_lang || "auto",
-      target_lang: input.target_lang,
+      source_lang: (typeof input.source_lang === "string" ? input.source_lang : "auto"),
+      target_lang: (input.target_lang as string),
     },
   };
 }
