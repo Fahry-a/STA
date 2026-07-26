@@ -20,11 +20,11 @@
 | `bun run test:integration` | Integration tests | `tests/integration/` directory |
 | `bun run test:performance` | Performance tests | `tests/performance/` directory |
 | `bun run test:coverage` | Tests with coverage | Uses `collectCoverageFrom` config |
+| `bun run test:endpoints` | Test all API endpoints | `scripts/test-endpoints.mjs` — comprehensive endpoint smoke test |
 | `bun run dev` | Local dev server | `wrangler dev` with `.dev.vars` |
 | `bun run start` | Local dev server | Alias for `bun run dev` |
 | `bun run deploy` | Deploy to production | `wrangler deploy` to Cloudflare |
 | `bun run cf-typegen` | Regenerate CF types | Updates `worker-configuration.d.ts` |
-| `bun run fix-lockfile` | Fix lockfile issues | Runs `scripts/fix-lockfile.js` |
 
 **CI pipeline order:**
 ```
@@ -94,11 +94,7 @@ docs/
 └── openapi.yaml                # OpenAPI 3.0.3 spec
 
 scripts/
-├── complete-setup.js           # One-command test suite setup
-├── fix-lockfile.js             # Fix lockfile issues
-├── rate-limit-benchmark.mjs    # Rate limiting benchmark
-├── setup-tests.js              # Test environment setup
-└── test-runner.js              # Custom test runner
+└── test-endpoints.mjs          # Endpoint smoke test (50+ cases across all routes)
 ```
 
 ---
