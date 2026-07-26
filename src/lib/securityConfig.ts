@@ -12,7 +12,10 @@ export const SECURITY_CONFIG = {
 
   // Rate limiting
   STRICT_RATE_LIMITING: true,
-  FAIL_SAFE_ON_ERROR: false, // Changed to false for better security
+  // When true, rate-limit failures (KV down) are fail-open so legitimate users
+  // aren't blocked during transient infrastructure issues. Set to false only
+  // if abuse during outages is a greater concern than availability.
+  FAIL_SAFE_ON_ERROR: true,
 
   // CORS settings
   CORS_ORIGINS: ["*"], // Restrict in production

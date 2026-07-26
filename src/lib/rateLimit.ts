@@ -208,8 +208,9 @@ function cleanupCacheIfNeeded(): void {
   // Only clean up when cache has more than 100 items to avoid frequent operations
   if (rateLimitCache.size > 100) {
     const now = Date.now();
+    const cutoff = now - CACHE_TTL * 2;
     for (const [key, entry] of rateLimitCache.entries()) {
-      if (now - entry.lastUpdate > CACHE_TTL * 2) {
+      if (entry.lastUpdate < cutoff) {
         rateLimitCache.delete(key);
       }
     }

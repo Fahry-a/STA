@@ -125,7 +125,7 @@ export async function warmCache(env: any): Promise<{
 
   for (const translation of POPULAR_TRANSLATIONS) {
     try {
-      const cacheKey = await generateCacheKey(
+      const cacheKey = generateCacheKey(
         translation.text,
         translation.source_lang,
         translation.target_lang,

@@ -167,7 +167,9 @@ export function validateV2Request(input: Record<string, unknown>): V2ValidationR
  */
 export function getV2ItemChargeCount(validation: V2ValidationResult): number {
   if (!validation.isValid || !validation.sanitizedInput) {
-    return 0;
+    // Charge 1 token even for invalid requests that somehow reach this point,
+    // to prevent rate-limit bypass via intentionally malformed batches.
+    return 1;
   }
   return validation.sanitizedInput.APR
     ? validation.sanitizedInput.text.length

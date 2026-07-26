@@ -53,16 +53,16 @@ describe("V2 Validation — getV2ItemChargeCount", () => {
     expect(getV2ItemChargeCount(v)).toBe(2);
   });
 
-  it("charges 0 for an invalid request (no tokens spent)", () => {
+  it("charges 1 for an invalid request (prevents rate-limit bypass)", () => {
     const v = validateV2Request({ text: [], target_lang: "zh" });
     expect(v.isValid).toBe(false);
-    expect(getV2ItemChargeCount(v)).toBe(0);
+    expect(getV2ItemChargeCount(v)).toBe(1);
   });
 
-  it("charges 0 when text is not an array", () => {
+  it("charges 1 when text is not an array (prevents rate-limit bypass)", () => {
     const v = validateV2Request({ text: "hello", target_lang: "zh" });
     expect(v.isValid).toBe(false);
-    expect(getV2ItemChargeCount(v)).toBe(0);
+    expect(getV2ItemChargeCount(v)).toBe(1);
   });
 });
 

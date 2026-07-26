@@ -3,8 +3,6 @@
  * Central export file for all STA library modules and utilities
  */
 
-import { query } from "./query";
-
 // Core functionality exports
 export * from "./cache";
 export * from "./errorHandler";
@@ -15,6 +13,7 @@ export * from "./cacheWarmer";
 export * from "./slidingWindowRateLimit";
 export * from "./v2Validation";
 export * from "./v2Translate";
+export * from "./validation";
 export {
   getProxyEndpoints,
   selectProxy,
@@ -27,6 +26,23 @@ export * from "./rateLimit";
 export * from "./retryLogic";
 export * from "./textUtils";
 export * from "./types";
+export * from "./config";
+export {
+  SECURITY_HEADERS,
+  getSecureClientIP,
+  handleCORSPreflight,
+  isAdminAuthorized,
+  validateLanguageCode,
+  timingSafeEqual,
+} from "./security";
+export { SECURITY_CONFIG, VALIDATION_PATTERNS, SECURITY_ERRORS } from "./securityConfig";
+export { translateWithGoogle } from "./services/googleTranslate";
+export {
+  startPerformanceTracking,
+  updatePerformanceMetrics,
+  endPerformanceTracking,
+  getPerformanceStats,
+} from "./performance";
 
-// Named export for the main query function
-export { query, normalizeLanguageCode } from "./query";
+// Named exports for the main query functions
+export { query, normalizeLanguageCode, buildRequestBody } from "./query";

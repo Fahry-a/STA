@@ -116,15 +116,33 @@ export function checkSlidingWindowRateLimit(
   const subWindowSize = effectiveConfig.windowMs / effectiveConfig.subWindows;
 
   // Get or create entries
-  let entries = windowStorage.get(key) || [];
+  const rawEntries = windowStorage.get(key);
 
-  // Cleanup old entries
-  entries = cleanupWindow(entries, effectiveConfig.windowMs);
+  // Only run cleanup when the raw entries array is non-trivially large
+  // to avoid per-request filter allocation for the common case (1-3 entries).
+  let entries: WindowEntry[];
+  if (!rawEntries || rawEntries.length === 0) {
+    // No entries — nothing to clean or store
+    return { allowed: true, remaining: effectiveConfig.maxRequests, resetMs: 0 };
+  } else if (rawEntries.length <= 3) {
+    // Small entry list — filter inline without allocating a new function
+    const cutoff = Date.now() - effectiveConfig.windowMs;
+    entries = [];
+    for (let i = 0; i < rawEntries.length; i++) {
+      if (rawEntries[i].timestamp > cutoff) {
+        entries.push(rawEntries[i]);
+      }
+    }
+  } else {
+    // Larger entry list — use the filter helper
+    entries = cleanupWindow(rawEntries, effectiveConfig.windowMs);
+  }
 
   // Drop the key entirely when it has no live sub-windows so the Map doesn't
   // accumulate emptied keys (a leak under high client churn).
   if (entries.length === 0) {
     windowStorage.delete(key);
+    return { allowed: true, remaining: effectiveConfig.maxRequests, resetMs: 0 };
   }
 
   // Calculate current window position

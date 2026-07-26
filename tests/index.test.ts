@@ -2,7 +2,31 @@
  * Tests for main app endpoints
  */
 
-// Mock the main app
+// Mock the route handlers
+jest.mock("../src/routes/translation", () => ({
+  handleTranslation: jest.fn(),
+}));
+
+jest.mock("../src/routes/v2", () => ({
+  handleV2Translation: jest.fn(),
+}));
+
+jest.mock("../src/routes/health", () => ({
+  handleHealthCheck: jest.fn(),
+  handleLiveness: jest.fn(),
+  handleReadiness: jest.fn(),
+}));
+
+jest.mock("../src/routes/admin", () => ({
+  handleMetrics: jest.fn(),
+  handleWarmCache: jest.fn(),
+  handleCacheStatus: jest.fn(),
+}));
+
+jest.mock("../src/routes/debug", () => ({
+  handleDebug: jest.fn(),
+}));
+
 jest.mock("../src/lib", () => ({
   clearMemoryCache: jest.fn(),
   generateCacheKey: jest.fn().mockReturnValue("cache:test-key"),
@@ -26,27 +50,27 @@ jest.mock("../src/lib/security", () => ({
   isAdminAuthorized: jest.fn().mockReturnValue(true),
 }));
 
-jest.mock("../src/lib/securityConfig", () => ({
-  SECURITY_CONFIG: {
-    FAIL_SAFE_ON_ERROR: false,
+jest.mock("../src/lib/cacheWarmer", () => ({
+  warmCache: jest.fn().mockResolvedValue({
+    warmed: 5,
+    failed: 0,
+    errors: [],
+    skipped: false,
+  }),
+  getCacheWarmingStatus: jest.fn().mockReturnValue({
+    totalPopular: 10,
+    lastWarmed: null,
+  }),
+}));
+
+jest.mock("../src/lib/logger", () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
   },
-}));
-
-jest.mock("../src/lib/env", () => ({
-  validateEnvironment: jest.fn().mockReturnValue([]),
-}));
-
-jest.mock("../src/lib/performance", () => ({
-  getPerformanceStats: jest
-    .fn()
-    .mockReturnValue({ requests: 100, avgResponseTime: 250 }),
-  startPerformanceTracking: jest.fn().mockReturnValue("perf-1"),
-  updatePerformanceMetrics: jest.fn(),
-  endPerformanceTracking: jest.fn(),
-}));
-
-jest.mock("../src/lib/rateLimit", () => ({
-  checkCombinedRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
+  generateRequestId: jest.fn().mockReturnValue("test-request-id"),
 }));
 
 describe("Main App", () => {
@@ -55,11 +79,8 @@ describe("Main App", () => {
 
   beforeEach(() => {
     mockEnv = createMockEnv();
-
-    // Reset all mocks
     jest.clearAllMocks();
 
-    // Import the app after mocks are set up
     delete require.cache[require.resolve("../src/index")];
     const indexModule = require("../src/index");
     app = indexModule.default;
@@ -88,104 +109,30 @@ describe("Main App", () => {
   });
 
   describe("POST /debug", () => {
-    it("should return 404 when debug mode is unset", async () => {
-      delete mockEnv.DEBUG_MODE;
+    it("should delegate to handleDebug", async () => {
+      const { handleDebug } = require("../src/routes/debug");
+      handleDebug.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
 
       const request = new Request("http://localhost/debug", {
         method: "POST",
         body: JSON.stringify({ text: "Hello world" }),
       });
-      const response = await app.fetch(request, mockEnv);
+      await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(404);
-    });
-
-    it("should return 404 when debug mode is disabled", async () => {
-      mockEnv.DEBUG_MODE = "false";
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        body: JSON.stringify({ text: "Hello world" }),
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(404);
-    });
-
-    it("should return 404 when debug mode is a non-empty falsey-like string", async () => {
-      mockEnv.DEBUG_MODE = "disabled";
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        body: JSON.stringify({ text: "Hello world" }),
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(404);
-    });
-
-    it("should provide debug information when enabled", async () => {
-      mockEnv.DEBUG_MODE = "true";
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-          source_lang: "en",
-          target_lang: "zh",
-        }),
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(200);
-      const result = await response.json();
-      expect(result.code).toBe(200);
-
-      const debugInfo = JSON.parse(result.data);
-      expect(debugInfo.status).toBe("Request format is valid");
-      expect(debugInfo.validation).toBeDefined();
-      expect(debugInfo.validation.request_id).toBeDefined();
-    });
-
-    it("should handle missing text parameter", async () => {
-      mockEnv.DEBUG_MODE = "true";
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(400);
-    });
-
-    it("should handle invalid JSON", async () => {
-      mockEnv.DEBUG_MODE = "true";
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        body: "invalid json",
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(400);
+      expect(handleDebug).toHaveBeenCalled();
     });
   });
 
   describe("POST /translate", () => {
-    it("should handle successful translation", async () => {
-      const { query, getCachedTranslation } = require("../src/lib");
-
-      getCachedTranslation.mockResolvedValueOnce(null);
-      query.mockResolvedValueOnce({
-        code: 200,
-        data: "你好世界",
-        id: 12345,
-        source_lang: "EN",
-        target_lang: "ZH",
-      });
+    it("should delegate to handleTranslation with deepl provider", async () => {
+      const { handleTranslation } = require("../src/routes/translation");
+      handleTranslation.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, data: "你好世界" }), {
+          status: 200,
+        })
+      );
 
       const request = new Request("http://localhost/translate", {
         method: "POST",
@@ -198,138 +145,151 @@ describe("Main App", () => {
       });
       const response = await app.fetch(request, mockEnv);
 
+      expect(handleTranslation).toHaveBeenCalled();
       expect(response.status).toBe(200);
-      const result = await response.json();
-      expect(result.code).toBe(200);
-      expect(result.data).toBe("你好世界");
     });
+  });
 
-    it("should return cached translation when available", async () => {
-      const { getCachedTranslation } = require("../src/lib");
+  describe("POST /deepl", () => {
+    it("should delegate to handleTranslation with deepl provider", async () => {
+      const { handleTranslation } = require("../src/routes/translation");
+      handleTranslation.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
 
-      getCachedTranslation.mockResolvedValueOnce({
-        data: "你好世界",
-        timestamp: Date.now(),
-        source_lang: "EN",
-        target_lang: "ZH",
-        id: 12345,
-      });
-
-      const request = new Request("http://localhost/translate", {
+      const request = new Request("http://localhost/deepl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-          source_lang: "en",
-          target_lang: "zh",
-        }),
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
       });
-      const response = await app.fetch(request, mockEnv);
+      await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(200);
-      const result = await response.json();
-      expect(result.code).toBe(200);
-      expect(result.data).toBe("你好世界");
+      expect(handleTranslation).toHaveBeenCalled();
     });
+  });
 
-    it("should handle missing text parameter", async () => {
-      const request = new Request("http://localhost/translate", {
+  describe("POST /google", () => {
+    it("should delegate to handleTranslation with google provider", async () => {
+      const { handleTranslation } = require("../src/routes/translation");
+      handleTranslation.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
+
+      const request = new Request("http://localhost/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
       });
-      const response = await app.fetch(request, mockEnv);
+      await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(400);
+      expect(handleTranslation).toHaveBeenCalledWith(
+        expect.anything(),
+        "google"
+      );
     });
+  });
 
-    it("should handle invalid JSON", async () => {
-      const request = new Request("http://localhost/translate", {
+  describe("POST /v2/translate", () => {
+    it("should delegate to handleV2Translation", async () => {
+      const { handleV2Translation } = require("../src/routes/v2");
+      handleV2Translation.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, data: [] }), { status: 200 })
+      );
+
+      const request = new Request("http://localhost/v2/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "invalid json",
+        body: JSON.stringify({ text: ["Hello"], target_lang: "zh" }),
       });
-      const response = await app.fetch(request, mockEnv);
+      await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(400);
+      expect(handleV2Translation).toHaveBeenCalled();
     });
+  });
 
-    it("should handle empty text", async () => {
-      const request = new Request("http://localhost/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "   ",
-          target_lang: "zh",
-        }),
-      });
-      const response = await app.fetch(request, mockEnv);
+  describe("GET /health", () => {
+    it("should delegate to handleHealthCheck", async () => {
+      const { handleHealthCheck } = require("../src/routes/health");
+      handleHealthCheck.mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "healthy" }), { status: 200 })
+      );
 
-      expect(response.status).toBe(400);
+      const request = new Request("http://localhost/health");
+      await app.fetch(request, mockEnv);
+
+      expect(handleHealthCheck).toHaveBeenCalled();
     });
+  });
 
-    it("should reject text that is too long instead of silently truncating", async () => {
-      const request = new Request("http://localhost/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "a".repeat(100000),
-          target_lang: "zh",
-        }),
-      });
-      const response = await app.fetch(request, mockEnv);
+  describe("GET /health/live", () => {
+    it("should delegate to handleLiveness", async () => {
+      const { handleLiveness } = require("../src/routes/health");
+      handleLiveness.mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "alive" }), { status: 200 })
+      );
 
-      // Oversized input is rejected with 413 rather than truncated and served
-      // as a 200, so the caller knows their full text was not translated.
-      expect(response.status).toBe(413);
-      const result = await response.json();
-      expect(result.code).toBe(413);
+      const request = new Request("http://localhost/health/live");
+      await app.fetch(request, mockEnv);
+
+      expect(handleLiveness).toHaveBeenCalled();
     });
+  });
 
-    it("should handle translation errors", async () => {
-      const { query, getCachedTranslation } = require("../src/lib");
+  describe("GET /health/ready", () => {
+    it("should delegate to handleReadiness", async () => {
+      const { handleReadiness } = require("../src/routes/health");
+      handleReadiness.mockResolvedValueOnce(
+        new Response(JSON.stringify({ ready: true }), { status: 200 })
+      );
 
-      getCachedTranslation.mockResolvedValueOnce(null);
-      query.mockResolvedValueOnce({
-        code: 500,
-        data: null,
-      });
+      const request = new Request("http://localhost/health/ready");
+      await app.fetch(request, mockEnv);
 
-      const request = new Request("http://localhost/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-          target_lang: "zh",
-        }),
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(500);
+      expect(handleReadiness).toHaveBeenCalled();
     });
+  });
 
-    it("should use default language codes", async () => {
-      const { query, getCachedTranslation } = require("../src/lib");
+  describe("GET /metrics", () => {
+    it("should delegate to handleMetrics", async () => {
+      const { handleMetrics } = require("../src/routes/admin");
+      handleMetrics.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
 
-      getCachedTranslation.mockResolvedValueOnce(null);
-      query.mockResolvedValueOnce({
-        code: 200,
-        data: "Hello world",
-        id: 12345,
-        source_lang: "AUTO",
-        target_lang: "EN",
-      });
+      const request = new Request("http://localhost/metrics");
+      await app.fetch(request, mockEnv);
 
-      const request = new Request("http://localhost/translate", {
+      expect(handleMetrics).toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /admin/warm-cache", () => {
+    it("should delegate to handleWarmCache", async () => {
+      const { handleWarmCache } = require("../src/routes/admin");
+      handleWarmCache.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
+
+      const request = new Request("http://localhost/admin/warm-cache", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-        }),
       });
-      const response = await app.fetch(request, mockEnv);
+      await app.fetch(request, mockEnv);
 
-      expect(response.status).toBe(200);
+      expect(handleWarmCache).toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /admin/cache-status", () => {
+    it("should delegate to handleCacheStatus", async () => {
+      const { handleCacheStatus } = require("../src/routes/admin");
+      handleCacheStatus.mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+      );
+
+      const request = new Request("http://localhost/admin/cache-status");
+      await app.fetch(request, mockEnv);
+
+      expect(handleCacheStatus).toHaveBeenCalled();
     });
   });
 
@@ -346,7 +306,6 @@ describe("Main App", () => {
 
   describe("Scheduled events", () => {
     it("should handle scheduled maintenance", async () => {
-      const { clearMemoryCache } = require("../src/lib");
       const indexModule = require("../src/index");
 
       const mockEvent = { scheduledTime: Date.now() } as ScheduledEvent;
@@ -361,22 +320,15 @@ describe("Main App", () => {
     });
   });
 
-  describe("Error handling", () => {
-    it("should handle unexpected errors gracefully", async () => {
-      const { query } = require("../src/lib");
-      query.mockRejectedValueOnce(new Error("Unexpected error"));
-
+  describe("Security headers", () => {
+    it("should add security headers to responses", async () => {
       const request = new Request("http://localhost/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-          target_lang: "zh",
-        }),
+        method: "GET",
       });
       const response = await app.fetch(request, mockEnv);
 
-      expect(response.status).toBeGreaterThanOrEqual(400);
+      expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(response.headers.get("X-Frame-Options")).toBe("DENY");
     });
   });
 });

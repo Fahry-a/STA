@@ -221,22 +221,31 @@ async function testDebug() {
 async function testHealth() {
   section("Health Endpoints");
 
-  // GET /health
-  let r = await request("GET", "/health");
-  assert("GET /health returns 200 or 503", r.status === 200 || r.status === 503);
-  assert("Response has status field", ["healthy", "degraded", "unhealthy"].includes(r.json?.status));
+  // GET /health (requires admin API key)
+  const healthHeaders = API_KEY ? { "X-API-Key": API_KEY } : {};
+  let r = await request("GET", "/health", null, healthHeaders);
+  if (API_KEY) {
+    assert("GET /health returns 200 or 503", r.status === 200 || r.status === 503);
+    assert("Response has status field", ["healthy", "degraded", "unhealthy"].includes(r.json?.status));
+  } else {
+    assert("GET /health without API key returns 401", r.status === 401);
+  }
 
-  // GET /health/live
+  // GET /health/live (no auth required — load balancer probe)
   r = await request("GET", "/health/live");
   assert("GET /health/live returns 200", r.status === 200);
   assert("Response has status: alive", r.json?.status === "alive");
   assert("Response has timestamp", typeof r.json?.timestamp === "string");
 
-  // GET /health/ready
-  r = await request("GET", "/health/ready");
-  assert("GET /health/ready returns 200 or 503", r.status === 200 || r.status === 503);
-  assert("Response has ready field", typeof r.json?.ready === "boolean");
-  assert("Response has status field", typeof r.json?.status === "string");
+  // GET /health/ready (requires admin API key)
+  r = await request("GET", "/health/ready", null, healthHeaders);
+  if (API_KEY) {
+    assert("GET /health/ready returns 200 or 503", r.status === 200 || r.status === 503);
+    assert("Response has ready field", typeof r.json?.ready === "boolean");
+    assert("Response has status field", typeof r.json?.status === "string");
+  } else {
+    assert("GET /health/ready without API key returns 401", r.status === 401);
+  }
 }
 
 async function testMetrics() {
