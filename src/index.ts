@@ -129,6 +129,24 @@ async function handleTranslation(c: any, provider: "deepl" | "google") {
   });
 
   try {
+    // Validate Content-Type header before parsing
+    const contentType = c.req.header("Content-Type") || "";
+    if (!contentType.includes("application/json")) {
+      logger.warn(env, "Invalid Content-Type", {
+        requestId,
+        endpoint: `/${provider}`,
+        clientIP,
+        metadata: { contentType },
+      });
+      return c.json(createStandardResponse(415, null), 415);
+    }
+
+    // Check Content-Length to reject oversized bodies early
+    const contentLength = c.req.header("Content-Length");
+    if (contentLength && parseInt(contentLength, 10) > PAYLOAD_LIMITS.MAX_REQUEST_SIZE) {
+      return c.json(createStandardResponse(413, null), 413);
+    }
+
     // Parse request parameters with better error handling
     let params;
     try {
