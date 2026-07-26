@@ -275,6 +275,16 @@ export function getMemoryCacheSize(): number {
 }
 
 /**
+ * Fully clear the in-memory cache and tracked keys.
+ * Unlike {@link clearMemoryCache} (which only expires stale entries),
+ * this resets the cache to an empty state — useful for test isolation.
+ */
+export function resetMemoryCache(): void {
+  memoryCache.clear();
+  trackedCacheKeys.clear();
+}
+
+/**
  * Gradually expire stale entries from the in-memory cache
  * Instead of clearing the entire cache (which causes a cold-start penalty),
  * this removes only entries older than the TTL, preserving recent hot entries.

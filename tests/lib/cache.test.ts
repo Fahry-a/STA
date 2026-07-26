@@ -6,6 +6,7 @@ import {
   clearMemoryCache,
   generateCacheKey,
   getCachedTranslation,
+  resetMemoryCache,
   setCachedTranslation,
 } from "../../src/lib/cache";
 
@@ -14,7 +15,7 @@ describe("Cache Module", () => {
 
   beforeEach(() => {
     mockEnv = createMockEnv();
-    clearMemoryCache();
+    resetMemoryCache();
   });
 
   afterEach(() => {
