@@ -320,7 +320,7 @@ async function testContentType() {
 async function testSecurityHeaders() {
   section("Security Headers");
 
-  let r = await request("GET", "/health/live", null, healthHeaders);
+  let r = await request("GET", "/health/live");
   assert("X-Content-Type-Options: nosniff", r.headers["x-content-type-options"] === "nosniff");
   assert("X-Frame-Options: DENY", r.headers["x-frame-options"] === "DENY");
   assert("Referrer-Policy present", typeof r.headers["referrer-policy"] === "string");
