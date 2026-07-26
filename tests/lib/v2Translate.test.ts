@@ -177,4 +177,144 @@ describe("V2 translateBatch", () => {
     expect(result.apr).toBe(false);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it("handles APR=true with partial failures (207 Multi-Status)", async () => {
+    let callCount = 0;
+    global.fetch = jest.fn(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First call succeeds
+        return Promise.resolve(mockDeepLResponse("你好"));
+      }
+      // Second call returns error
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("server error"),
+      });
+    }) as jest.Mock;
+
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello", "world"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(207);
+    expect(result.apr).toBe(true);
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].success).toBe(true);
+    expect(result.data[1].success).toBe(false);
+  });
+
+  it("handles APR=true with all failures", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("error"),
+      })
+    ) as jest.Mock;
+
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(207);
+    expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBeDefined();
+  });
+
+  it("handles APR=true with fetch exceptions", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.reject(new TypeError("fetch failed"))
+    ) as jest.Mock;
+
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(207);
+    expect(result.data[0].success).toBe(false);
+  });
+
+  it("handles APR=false combined failure", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("error"),
+      })
+    ) as jest.Mock;
+
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello", "world"],
+        APR: false,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBeGreaterThanOrEqual(400);
+    expect(result.data).toHaveLength(2);
+    expect(result.data.every((r) => !r.success)).toBe(true);
+  });
+
+  it("handles APR=false fetch exception", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.reject(new TypeError("fetch failed"))
+    ) as jest.Mock;
+
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: false,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBeGreaterThanOrEqual(400);
+    expect(result.data[0].success).toBe(false);
+  });
+
+  it("handles APR=true with non-string text items", async () => {
+    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: [123 as any, "valid"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    // Validation should reject the non-string item
+    expect(result.code).toBe(400);
+  });
 });

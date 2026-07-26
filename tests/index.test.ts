@@ -1,53 +1,16 @@
 /**
- * Tests for main app endpoints
+ * Tests for main app endpoints — routes are exercised directly for coverage.
+ * Only external API calls (fetch to DeepL/Google) and KV are mocked.
  */
 
-// Mock the route handlers
-jest.mock("../src/routes/translation", () => ({
-  handleTranslation: jest.fn(),
-}));
-
-jest.mock("../src/routes/v2", () => ({
-  handleV2Translation: jest.fn(),
-}));
-
-jest.mock("../src/routes/health", () => ({
-  handleHealthCheck: jest.fn(),
-  handleLiveness: jest.fn(),
-  handleReadiness: jest.fn(),
-}));
-
-jest.mock("../src/routes/admin", () => ({
-  handleMetrics: jest.fn(),
-  handleWarmCache: jest.fn(),
-  handleCacheStatus: jest.fn(),
-}));
-
-jest.mock("../src/routes/debug", () => ({
-  handleDebug: jest.fn(),
-}));
-
-jest.mock("../src/lib", () => ({
-  clearMemoryCache: jest.fn(),
-  generateCacheKey: jest.fn().mockReturnValue("cache:test-key"),
-  getCachedTranslation: jest.fn(),
-  setCachedTranslation: jest.fn(),
-  query: jest.fn(),
-}));
-
-jest.mock("../src/lib/security", () => ({
-  getSecureClientIP: jest.fn().mockReturnValue("192.168.1.1"),
-  handleCORSPreflight: jest
-    .fn()
-    .mockReturnValue(new Response(null, { status: 200 })),
-  validateLanguageCode: jest
-    .fn()
-    .mockImplementation((code) => code?.toLowerCase()),
-  SECURITY_HEADERS: {
-    "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
+jest.mock("../src/lib/logger", () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
   },
-  isAdminAuthorized: jest.fn().mockReturnValue(true),
+  generateRequestId: jest.fn().mockReturnValue("test-request-id"),
 }));
 
 jest.mock("../src/lib/cacheWarmer", () => ({
@@ -63,16 +26,6 @@ jest.mock("../src/lib/cacheWarmer", () => ({
   }),
 }));
 
-jest.mock("../src/lib/logger", () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-  generateRequestId: jest.fn().mockReturnValue("test-request-id"),
-}));
-
 describe("Main App", () => {
   let app: any;
   let mockEnv: Env;
@@ -80,6 +33,21 @@ describe("Main App", () => {
   beforeEach(() => {
     mockEnv = createMockEnv();
     jest.clearAllMocks();
+
+    // Mock fetch for DeepL/Google API calls
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          result: {
+            texts: [{ text: "translated text" }],
+            lang: "EN",
+          },
+          id: 12345,
+        }),
+      text: () => Promise.resolve(""),
+    }) as jest.Mock;
 
     delete require.cache[require.resolve("../src/index")];
     const indexModule = require("../src/index");
@@ -90,224 +58,380 @@ describe("Main App", () => {
     it("should redirect to GitHub repository", async () => {
       const request = new Request("http://localhost/", { method: "GET" });
       const response = await app.fetch(request, mockEnv);
-
       expect(response.status).toBe(302);
     });
   });
 
-  describe("GET /translate", () => {
-    it("should return message for GET requests", async () => {
-      const request = new Request("http://localhost/translate", {
-        method: "GET",
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.status).toBe(200);
-      const text = await response.text();
-      expect(text).toContain("Please use POST method");
+  describe("GET /translate, /deepl, /google", () => {
+    it("GET /translate returns hint", async () => {
+      const r = await app.fetch(new Request("http://localhost/translate"), mockEnv);
+      expect(r.status).toBe(200);
+      expect(await r.text()).toContain("Please use POST method");
     });
-  });
-
-  describe("POST /debug", () => {
-    it("should delegate to handleDebug", async () => {
-      const { handleDebug } = require("../src/routes/debug");
-      handleDebug.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/debug", {
-        method: "POST",
-        body: JSON.stringify({ text: "Hello world" }),
-      });
-      await app.fetch(request, mockEnv);
-
-      expect(handleDebug).toHaveBeenCalled();
+    it("GET /deepl returns hint", async () => {
+      const r = await app.fetch(new Request("http://localhost/deepl"), mockEnv);
+      expect(r.status).toBe(200);
+    });
+    it("GET /google returns hint", async () => {
+      const r = await app.fetch(new Request("http://localhost/google"), mockEnv);
+      expect(r.status).toBe(200);
     });
   });
 
   describe("POST /translate", () => {
-    it("should delegate to handleTranslation with deepl provider", async () => {
-      const { handleTranslation } = require("../src/routes/translation");
-      handleTranslation.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200, data: "你好世界" }), {
-          status: 200,
-        })
-      );
-
-      const request = new Request("http://localhost/translate", {
+    it("should translate successfully", async () => {
+      const req = new Request("http://localhost/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Hello world",
-          source_lang: "en",
-          target_lang: "zh",
-        }),
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
       });
-      const response = await app.fetch(request, mockEnv);
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.code).toBe(200);
+      expect(json.data).toBe("translated text");
+    });
 
-      expect(handleTranslation).toHaveBeenCalled();
-      expect(response.status).toBe(200);
+    it("should return 400 for missing text", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 400 for empty text", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "   ", target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 413 for oversized text", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "a".repeat(100000), target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(413);
+    });
+
+    it("should return 415 for missing Content-Type", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(415);
+    });
+
+    it("should return 400 for invalid JSON", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "not json",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should use default language codes", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
     });
   });
 
   describe("POST /deepl", () => {
-    it("should delegate to handleTranslation with deepl provider", async () => {
-      const { handleTranslation } = require("../src/routes/translation");
-      handleTranslation.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/deepl", {
+    it("should translate via DeepL", async () => {
+      const req = new Request("http://localhost/deepl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
       });
-      await app.fetch(request, mockEnv);
-
-      expect(handleTranslation).toHaveBeenCalled();
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
     });
   });
 
   describe("POST /google", () => {
-    it("should delegate to handleTranslation with google provider", async () => {
-      const { handleTranslation } = require("../src/routes/translation");
-      handleTranslation.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
-      );
+    it("should translate via Google", async () => {
+      // Mock Google Translate response format
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([["translated text", null, "en"]]),
+        text: () => Promise.resolve(""),
+      });
 
-      const request = new Request("http://localhost/google", {
+      const req = new Request("http://localhost/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
       });
-      await app.fetch(request, mockEnv);
-
-      expect(handleTranslation).toHaveBeenCalledWith(
-        expect.anything(),
-        "google"
-      );
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
     });
   });
 
   describe("POST /v2/translate", () => {
-    it("should delegate to handleV2Translation", async () => {
-      const { handleV2Translation } = require("../src/routes/v2");
-      handleV2Translation.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200, data: [] }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/v2/translate", {
+    it("should handle batch translation", async () => {
+      const req = new Request("http://localhost/v2/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: ["Hello"], target_lang: "zh" }),
+        body: JSON.stringify({ text: ["Hello", "World"], target_lang: "zh" }),
       });
-      await app.fetch(request, mockEnv);
-
-      expect(handleV2Translation).toHaveBeenCalled();
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.apr).toBe(true);
+      expect(json.data).toHaveLength(2);
     });
-  });
 
-  describe("GET /health", () => {
-    it("should delegate to handleHealthCheck", async () => {
-      const { handleHealthCheck } = require("../src/routes/health");
-      handleHealthCheck.mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "healthy" }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/health");
-      await app.fetch(request, mockEnv);
-
-      expect(handleHealthCheck).toHaveBeenCalled();
-    });
-  });
-
-  describe("GET /health/live", () => {
-    it("should delegate to handleLiveness", async () => {
-      const { handleLiveness } = require("../src/routes/health");
-      handleLiveness.mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "alive" }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/health/live");
-      await app.fetch(request, mockEnv);
-
-      expect(handleLiveness).toHaveBeenCalled();
-    });
-  });
-
-  describe("GET /health/ready", () => {
-    it("should delegate to handleReadiness", async () => {
-      const { handleReadiness } = require("../src/routes/health");
-      handleReadiness.mockResolvedValueOnce(
-        new Response(JSON.stringify({ ready: true }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/health/ready");
-      await app.fetch(request, mockEnv);
-
-      expect(handleReadiness).toHaveBeenCalled();
-    });
-  });
-
-  describe("GET /metrics", () => {
-    it("should delegate to handleMetrics", async () => {
-      const { handleMetrics } = require("../src/routes/admin");
-      handleMetrics.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/metrics");
-      await app.fetch(request, mockEnv);
-
-      expect(handleMetrics).toHaveBeenCalled();
-    });
-  });
-
-  describe("POST /admin/warm-cache", () => {
-    it("should delegate to handleWarmCache", async () => {
-      const { handleWarmCache } = require("../src/routes/admin");
-      handleWarmCache.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
-      );
-
-      const request = new Request("http://localhost/admin/warm-cache", {
+    it("should return 400 for missing text", async () => {
+      const req = new Request("http://localhost/v2/translate", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_lang: "zh" }),
       });
-      await app.fetch(request, mockEnv);
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
 
-      expect(handleWarmCache).toHaveBeenCalled();
+    it("should return 415 for wrong Content-Type", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: "Hello",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(415);
+    });
+
+    it("should handle APR=false combined mode", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: ["Hello", "World"], APR: false, target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.apr).toBe(false);
+    });
+
+    it("should return 400 for empty text array", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: [], target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 400 for too many items", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: Array(11).fill("Hi"), target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
     });
   });
 
-  describe("GET /admin/cache-status", () => {
-    it("should delegate to handleCacheStatus", async () => {
-      const { handleCacheStatus } = require("../src/routes/admin");
-      handleCacheStatus.mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 200 }), { status: 200 })
+  describe("POST /debug", () => {
+    it("should return 404 when DEBUG_MODE is disabled", async () => {
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(404);
+    });
+
+    it("should return debug info when DEBUG_MODE is enabled", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello", source_lang: "en", target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.code).toBe(200);
+    });
+
+    it("should return 400 for missing text in debug", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 400 for empty text in debug", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "  " }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 400 for invalid language codes in debug", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello", source_lang: "x", target_lang: "y" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should handle invalid JSON in debug", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        body: "invalid json",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+  });
+
+  describe("Health endpoints", () => {
+    it("GET /health/live returns alive", async () => {
+      const r = await app.fetch(new Request("http://localhost/health/live"), mockEnv);
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.status).toBe("alive");
+    });
+
+    it("GET /health requires admin key", async () => {
+      const r = await app.fetch(new Request("http://localhost/health"), mockEnv);
+      expect(r.status).toBe(401);
+    });
+
+    it("GET /health with valid key returns health status", async () => {
+      const req = new Request("http://localhost/health", {
+        headers: { "X-API-Key": "test-api-key" },
+      });
+      mockEnv.ADMIN_API_KEY = "test-api-key";
+      const r = await app.fetch(req, mockEnv);
+      expect([200, 503]).toContain(r.status);
+      const json = await r.json();
+      expect(json.status).toBeDefined();
+    });
+
+    it("GET /health/ready requires admin key", async () => {
+      const r = await app.fetch(new Request("http://localhost/health/ready"), mockEnv);
+      expect(r.status).toBe(401);
+    });
+
+    it("GET /health/ready with valid key", async () => {
+      mockEnv.ADMIN_API_KEY = "test-api-key";
+      const req = new Request("http://localhost/health/ready", {
+        headers: { "X-API-Key": "test-api-key" },
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect([200, 503]).toContain(r.status);
+    });
+  });
+
+  describe("Admin endpoints", () => {
+    it("GET /metrics requires admin key", async () => {
+      const r = await app.fetch(new Request("http://localhost/metrics"), mockEnv);
+      expect(r.status).toBe(401);
+    });
+
+    it("GET /metrics with valid key", async () => {
+      mockEnv.ADMIN_API_KEY = "test-api-key";
+      const req = new Request("http://localhost/metrics", {
+        headers: { "X-API-Key": "test-api-key" },
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+    });
+
+    it("POST /admin/warm-cache requires admin key", async () => {
+      const req = new Request("http://localhost/admin/warm-cache", { method: "POST" });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(401);
+    });
+
+    it("POST /admin/warm-cache with valid key", async () => {
+      mockEnv.ADMIN_API_KEY = "test-api-key";
+      const req = new Request("http://localhost/admin/warm-cache", {
+        method: "POST",
+        headers: { "X-API-Key": "test-api-key" },
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+    });
+
+    it("GET /admin/cache-status requires admin key", async () => {
+      const r = await app.fetch(new Request("http://localhost/admin/cache-status"), mockEnv);
+      expect(r.status).toBe(401);
+    });
+
+    it("GET /admin/cache-status with valid key", async () => {
+      mockEnv.ADMIN_API_KEY = "test-api-key";
+      const req = new Request("http://localhost/admin/cache-status", {
+        headers: { "X-API-Key": "test-api-key" },
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(200);
+    });
+  });
+
+  describe("OPTIONS", () => {
+    it("should handle CORS preflight", async () => {
+      const r = await app.fetch(
+        new Request("http://localhost/translate", { method: "OPTIONS" }),
+        mockEnv
       );
-
-      const request = new Request("http://localhost/admin/cache-status");
-      await app.fetch(request, mockEnv);
-
-      expect(handleCacheStatus).toHaveBeenCalled();
+      expect(r.status).toBe(200);
     });
   });
 
-  describe("OPTIONS requests", () => {
-    it("should handle CORS preflight requests", async () => {
-      const request = new Request("http://localhost/translate", {
-        method: "OPTIONS",
-      });
-      const response = await app.fetch(request, mockEnv);
+  describe("Security headers", () => {
+    it("should add security headers to responses", async () => {
+      const r = await app.fetch(new Request("http://localhost/translate"), mockEnv);
+      expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(r.headers.get("X-Frame-Options")).toBe("DENY");
+    });
+  });
 
-      expect(response.status).toBe(200);
+  describe("Catch-all", () => {
+    it("should redirect unknown paths", async () => {
+      const r = await app.fetch(new Request("http://localhost/unknown"), mockEnv);
+      expect(r.status).toBe(302);
     });
   });
 
   describe("Scheduled events", () => {
     it("should handle scheduled maintenance", async () => {
       const indexModule = require("../src/index");
-
       const mockEvent = { scheduledTime: Date.now() } as ScheduledEvent;
       const mockContext = {
         waitUntil: jest.fn(),
@@ -315,20 +439,7 @@ describe("Main App", () => {
       } as unknown as ExecutionContext;
 
       await indexModule.default.scheduled(mockEvent, mockEnv, mockContext);
-
       expect(mockContext.waitUntil).toHaveBeenCalled();
-    });
-  });
-
-  describe("Security headers", () => {
-    it("should add security headers to responses", async () => {
-      const request = new Request("http://localhost/translate", {
-        method: "GET",
-      });
-      const response = await app.fetch(request, mockEnv);
-
-      expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
-      expect(response.headers.get("X-Frame-Options")).toBe("DENY");
     });
   });
 });

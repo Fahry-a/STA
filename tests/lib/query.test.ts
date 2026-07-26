@@ -123,6 +123,142 @@ describe("Query Module", () => {
       expect(result.data).toBe("你好世界");
     });
 
+    it("should handle 429 rate limit response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: () => Promise.resolve("rate limited"),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle 400 error response with body", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve("bad request details"),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle non-ok response that fails to read body", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.reject(new Error("read error")),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle JSON parse error in response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.reject(new Error("invalid json")),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle DeepL API error codes", async () => {
+      const errorCodes = [1156049, 1042912, 1042513, 1042003];
+      for (const code of errorCodes) {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              error: { code, message: `Error ${code}` },
+            }),
+        } as any);
+
+        const result = await query({
+          text: "Hello",
+          source_lang: "en",
+          target_lang: "zh",
+        });
+
+        expect(result.code).toBeGreaterThanOrEqual(400);
+      }
+    });
+
+    it("should handle unknown DeepL error code", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            error: { code: 999999, message: "Unknown error" },
+          }),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle invalid response structure (no texts)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            result: { texts: [], lang: "EN" },
+            id: 12345,
+          }),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle response with no result field", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
     it("should handle API errors", async () => {
       const mockErrorResponse = {
         error: {
@@ -201,6 +337,72 @@ describe("Query Module", () => {
         "https://custom-proxy.com/api",
         expect.any(Object)
       );
+    });
+
+    it("should use proxy from env selection", async () => {
+      const mockResponse = {
+        result: { texts: [{ text: "translated" }], lang: "EN" },
+        id: 12345,
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as any);
+
+      const result = await query(
+        { text: "Hello", source_lang: "auto", target_lang: "en" },
+        { env: mockEnv }
+      );
+
+      expect(result.code).toBe(200);
+    });
+
+    it("should handle non-ok response after makeRequest", async () => {
+      // First call: makeRequest returns non-ok
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        text: () => Promise.resolve("bad gateway"),
+      } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBeGreaterThanOrEqual(400);
+    });
+
+    it("should handle response.ok but non-ok after makeRequest (retry path)", async () => {
+      // First call returns non-ok, retry succeeds
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          text: () => Promise.resolve("unavailable"),
+        } as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              result: { texts: [{ text: "ok" }], lang: "EN" },
+              id: 12345,
+            }),
+        } as any);
+
+      const result = await query({
+        text: "Hello",
+        source_lang: "en",
+        target_lang: "zh",
+      });
+
+      expect(result.code).toBe(200);
+    });
+
+    it("should handle empty params text", async () => {
+      const result = await query({ text: "", source_lang: "en", target_lang: "zh" } as any);
+      expect(result.code).toBe(400);
     });
   });
 });

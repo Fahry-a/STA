@@ -6,6 +6,7 @@ import {
   calculateSmartDelay,
   isRetryableError,
   retryWithBackoff,
+  retryWithRateLimit,
 } from "../../src/lib/retryLogic";
 
 // Mock delayRequest so retry backoff sleeps are recorded (not actually waited).
@@ -126,9 +127,80 @@ describe("Retry Logic Module", () => {
       expect(calculateSmartDelay(1, true)).toBeGreaterThan(60000);
     });
 
-    it("should cap non-rate-limit delays", () => {
+    it("should cap rate limit delays at 5 minutes", () => {
+      expect(calculateSmartDelay(100, true)).toBe(300000);
+    });
+
+    it("should cap non-rate-limit delays at 30 seconds", () => {
       expect(calculateSmartDelay(0, false)).toBe(1000);
       expect(calculateSmartDelay(10, false)).toBe(30000);
+    });
+
+    it("should default isRateLimit to false", () => {
+      expect(calculateSmartDelay(0)).toBe(1000);
+    });
+  });
+
+  describe("retryWithRateLimit", () => {
+    it("should succeed on first try", async () => {
+      const op = jest.fn().mockResolvedValue("ok");
+      await expect(retryWithRateLimit(op, 3)).resolves.toBe("ok");
+      expect(op).toHaveBeenCalledTimes(1);
+    });
+
+    it("should retry on 429 errors", async () => {
+      const err429 = new Error("rate limited");
+      (err429 as any).status = 429;
+      const op = jest.fn()
+        .mockRejectedValueOnce(err429)
+        .mockResolvedValueOnce("ok");
+      await expect(retryWithRateLimit(op, 3)).resolves.toBe("ok");
+      expect(op).toHaveBeenCalledTimes(2);
+    });
+
+    it("should retry on 5xx errors", async () => {
+      const err500 = new Error("server error");
+      (err500 as any).status = 500;
+      const op = jest.fn()
+        .mockRejectedValueOnce(err500)
+        .mockResolvedValueOnce("ok");
+      await expect(retryWithRateLimit(op, 3)).resolves.toBe("ok");
+      expect(op).toHaveBeenCalledTimes(2);
+    });
+
+    it("should retry on AbortError", async () => {
+      const abortErr = new Error("aborted");
+      abortErr.name = "AbortError";
+      const op = jest.fn()
+        .mockRejectedValueOnce(abortErr)
+        .mockResolvedValueOnce("ok");
+      await expect(retryWithRateLimit(op, 3)).resolves.toBe("ok");
+      expect(op).toHaveBeenCalledTimes(2);
+    });
+
+    it("should retry on fetch TypeError", async () => {
+      const fetchErr = new TypeError("fetch failed");
+      const op = jest.fn()
+        .mockRejectedValueOnce(fetchErr)
+        .mockResolvedValueOnce("ok");
+      await expect(retryWithRateLimit(op, 3)).resolves.toBe("ok");
+      expect(op).toHaveBeenCalledTimes(2);
+    });
+
+    it("should not retry on 400 errors", async () => {
+      const err400 = new Error("bad request");
+      (err400 as any).status = 400;
+      const op = jest.fn().mockRejectedValue(err400);
+      await expect(retryWithRateLimit(op, 3)).rejects.toThrow("bad request");
+      expect(op).toHaveBeenCalledTimes(1);
+    });
+
+    it("should exhaust retries", async () => {
+      const err429 = new Error("rate limited");
+      (err429 as any).status = 429;
+      const op = jest.fn().mockRejectedValue(err429);
+      await expect(retryWithRateLimit(op, 3)).rejects.toThrow("rate limited");
+      expect(op).toHaveBeenCalledTimes(3);
     });
   });
 
