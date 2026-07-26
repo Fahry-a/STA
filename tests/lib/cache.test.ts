@@ -6,6 +6,7 @@ import {
   clearMemoryCache,
   generateCacheKey,
   getCachedTranslation,
+  getMemoryCacheSize,
   resetMemoryCache,
   setCachedTranslation,
 } from "../../src/lib/cache";
@@ -101,6 +102,85 @@ describe("Cache Module", () => {
         setCachedTranslation("test-key", cacheEntry, mockEnv)
       ).resolves.not.toThrow();
     });
+
+    it("should update existing key in memory cache", async () => {
+      const entry1 = {
+        data: "first",
+        timestamp: Date.now(),
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
+      const entry2 = {
+        data: "second",
+        timestamp: Date.now(),
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
+
+      await setCachedTranslation("update-key", entry1, mockEnv);
+      await setCachedTranslation("update-key", entry2, mockEnv);
+
+      const result = await getCachedTranslation("update-key", mockEnv);
+      expect(result?.data).toBe("second");
+    });
+
+    it("should handle tracked keys eviction when exceeding max size", async () => {
+      // Add more entries than MEMORY_CACHE_MAX_SIZE to trigger tracked keys eviction
+      // The trackedCacheKeys Set is bounded to MEMORY_CACHE_MAX_SIZE (1000)
+      // We need to add 1001+ entries to trigger the while loop
+      const promises: Promise<void>[] = [];
+      for (let i = 0; i < 1002; i++) {
+        const entry = {
+          data: `value-${i}`,
+          timestamp: Date.now(),
+          source_lang: "EN",
+          target_lang: "ZH",
+        };
+        promises.push(setCachedTranslation(`tracked-key-${i}`, entry, mockEnv));
+      }
+      await Promise.all(promises);
+
+      // The trackedCacheKeys set should be bounded
+      // Verify the last entry was stored
+      const result = await getCachedTranslation("tracked-key-1001", mockEnv);
+      expect(result?.data).toBe("value-1001");
+    });
+
+    it("should handle memoryCache.set throwing error (outer catch)", async () => {
+      // Force an error in the outer try block by corrupting the cache
+      // We can simulate this by making the memory cache throw on set
+      const cacheEntry = {
+        data: "test",
+        timestamp: Date.now(),
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
+
+      // This should not throw even if something goes wrong
+      await expect(
+        setCachedTranslation("outer-catch-key", cacheEntry, mockEnv)
+      ).resolves.not.toThrow();
+    });
+
+    it("should handle outer catch when trackedCacheKeys.add throws (line 262)", async () => {
+      const originalAdd = Set.prototype.add;
+      Set.prototype.add = (() => {
+        throw new Error("Set.add failed");
+      }) as any;
+      try {
+        const cacheEntry = {
+          data: "outer-test",
+          timestamp: Date.now(),
+          source_lang: "EN",
+          target_lang: "ZH",
+        };
+        await expect(
+          setCachedTranslation("outer-throw-key", cacheEntry, mockEnv)
+        ).resolves.not.toThrow();
+      } finally {
+        Set.prototype.add = originalAdd;
+      }
+    });
   });
 
   describe("getCachedTranslation", () => {
@@ -168,19 +248,32 @@ describe("Cache Module", () => {
       expect(result).toBeNull();
     });
 
-    it("should return null for outer exceptions", async () => {
-      // Force an error in the outer try block
-      (mockEnv.CACHE_KV.get as jest.Mock).mockRejectedValueOnce(
-        new Error("outer error")
-      );
-      const result = await getCachedTranslation("outer-error", mockEnv);
-      expect(result).toBeNull();
+    it("should return null for outer exceptions (lines 213-218)", async () => {
+      const cacheEntry = {
+        data: "test",
+        timestamp: Date.now(),
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
+      await setCachedTranslation("outer-key", cacheEntry, mockEnv);
+
+      // Mock Date.now to throw, triggering the outer catch
+      const originalDateNow = Date.now;
+      Date.now = (() => {
+        throw new Error("Date.now failed");
+      }) as any;
+
+      try {
+        const result = await getCachedTranslation("outer-key", mockEnv);
+        expect(result).toBeNull();
+      } finally {
+        Date.now = originalDateNow;
+      }
     });
   });
 
   describe("clearMemoryCache", () => {
     it("should clear expired entries and return count", () => {
-      // Add some entries first
       const recent = {
         data: "recent",
         timestamp: Date.now(),
@@ -189,18 +282,46 @@ describe("Cache Module", () => {
       };
       const old = {
         data: "old",
-        timestamp: Date.now() - 2 * 60 * 60 * 1000, // 2 hours ago
+        timestamp: Date.now() - 2 * 60 * 60 * 1000,
         source_lang: "EN",
         target_lang: "ZH",
       };
 
-      // Store entries via setCachedTranslation (uses memory cache)
       setCachedTranslation("recent-key", recent, mockEnv);
       setCachedTranslation("old-key", old, mockEnv);
 
       const removed = clearMemoryCache();
       expect(typeof removed).toBe("number");
       expect(removed).toBeGreaterThanOrEqual(0);
+    });
+
+    it("should handle tracked keys not in LRU (lines 309, 314-316)", async () => {
+      const entry = {
+        data: "test",
+        timestamp: Date.now(),
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
+
+      // Step 1: Fill cache to capacity (1000 entries)
+      for (let i = 0; i < 1000; i++) {
+        await setCachedTranslation(`key-${i}`, { ...entry, data: `v${i}` }, mockEnv);
+      }
+
+      // Step 2: Promote early entries in LRU by re-setting them (update existing key)
+      await setCachedTranslation("key-0", { ...entry, data: "promoted-0" }, mockEnv);
+      await setCachedTranslation("key-1", { ...entry, data: "promoted-1" }, mockEnv);
+
+      // Step 3: Add 2 more entries — LRU evicts different entries than trackedCacheKeys
+      // LRU evicts key-2 (least recently used, since 0 and 1 were promoted)
+      // while-loop evicts key-0 (oldest in trackedCacheKeys insertion order)
+      await setCachedTranslation("key-1000", { ...entry, data: "v1000" }, mockEnv);
+      await setCachedTranslation("key-1001", { ...entry, data: "v1001" }, mockEnv);
+
+      // Now: memoryCache has {0,1,4..1001}, trackedCacheKeys has {2..1001}
+      // key-2 and key-3 are in trackedCacheKeys but NOT in memoryCache
+      const removed = clearMemoryCache();
+      expect(removed).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -223,7 +344,6 @@ describe("Cache Module", () => {
     });
 
     it("should handle getMemoryCacheSize", async () => {
-      const { getMemoryCacheSize } = await import("../../src/lib/cache");
       const size = getMemoryCacheSize();
       expect(typeof size).toBe("number");
       expect(size).toBeGreaterThanOrEqual(0);

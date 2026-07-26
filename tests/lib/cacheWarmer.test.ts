@@ -131,5 +131,59 @@ describe("Cache Warmer Module", () => {
       expect(result.failed).toBeGreaterThanOrEqual(0);
       expect(result.errors.length).toBeGreaterThanOrEqual(0);
     });
+
+    it("should skip when KV read fails in acquireWarmLock (line 85)", async () => {
+      mockEnv.CACHE_KV.get.mockRejectedValueOnce(new Error("KV read error"));
+
+      const result = await warmCache(mockEnv);
+
+      expect(result.skipped).toBe(true);
+      expect(result.warmed).toBe(0);
+    });
+
+    it("should skip warming for already-cached translations (line 138)", async () => {
+      mockEnv.CACHE_KV.get.mockResolvedValue(null);
+      mockEnv.CACHE_KV.put.mockResolvedValue(undefined);
+
+      const cacheModule = require("../../src/lib/cache");
+      cacheModule.getCachedTranslation.mockImplementation(() =>
+        Promise.resolve({ data: "already cached" })
+      );
+
+      const result = await warmCache(mockEnv);
+
+      cacheModule.getCachedTranslation.mockImplementation(() =>
+        Promise.resolve(null)
+      );
+
+      expect(result.warmed).toBe(0);
+      expect(result.failed).toBe(0);
+      expect(result.skipped).toBe(false);
+    });
+
+    it("should count failures when query returns non-200 (line 165)", async () => {
+      mockEnv.CACHE_KV.get.mockResolvedValue(null);
+      mockEnv.CACHE_KV.put.mockResolvedValue(undefined);
+
+      const queryModule = require("../../src/lib/query");
+      queryModule.query.mockResolvedValue({ code: 500, data: null });
+
+      const result = await warmCache(mockEnv);
+
+      expect(result.failed).toBeGreaterThan(0);
+    });
+
+    it("should handle non-Error throws from query (line 173 String branch)", async () => {
+      mockEnv.CACHE_KV.get.mockResolvedValue(null);
+      mockEnv.CACHE_KV.put.mockResolvedValue(undefined);
+
+      const queryModule = require("../../src/lib/query");
+      queryModule.query.mockRejectedValue("string error");
+
+      const result = await warmCache(mockEnv);
+
+      expect(result.failed).toBeGreaterThan(0);
+      expect(result.errors.length).toBeGreaterThan(0);
+    });
   });
 });

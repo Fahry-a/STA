@@ -8,17 +8,29 @@ import {
   getV2ItemChargeCount,
   validateV2Request,
 } from "../../src/lib/v2Validation";
+import * as queryModule from "../../src/lib/query";
 
-function mockDeepLResponse(translated: string, lang = "ZH", id = 12345) {
+jest.mock("../../src/lib/query");
+
+const mockQuery = queryModule.query as jest.MockedFunction<typeof queryModule.query>;
+
+function successResponse(translated: string, lang = "ZH", id = 12345) {
   return {
-    ok: true,
-    status: 200,
-    json: () =>
-      Promise.resolve({
-        result: { texts: [{ text: translated }], lang },
-        id,
-      }),
-    text: () => Promise.resolve(JSON.stringify({})),
+    code: 200,
+    data: translated,
+    id,
+    source_lang: lang,
+    target_lang: "ZH",
+  };
+}
+
+function errorResponse(code: number) {
+  return {
+    code,
+    data: null,
+    id: 12345,
+    source_lang: null,
+    target_lang: null,
   };
 }
 
@@ -75,7 +87,6 @@ describe("V2 Validation — APR string sentinels", () => {
     });
     expect(v.isValid).toBe(true);
     expect(v.sanitizedInput?.APR).toBe(false);
-    // APR=false is a single combined call → one charge, not N.
     expect(getV2ItemChargeCount(v)).toBe(1);
   });
 
@@ -117,17 +128,14 @@ describe("V2 Validation — APR string sentinels", () => {
 });
 
 describe("V2 translateBatch", () => {
+  const env = createMockEnv();
+
   beforeEach(() => {
-    // Stub the upstream DeepL fetch used by query().
-    global.fetch = jest.fn(() =>
-      Promise.resolve(mockDeepLResponse("你好"))
-    ) as jest.Mock;
-    // Keep timers real so retry backoff (with jitter) resolves promptly on
-    // the happy path (no retries occur here).
+    jest.clearAllMocks();
+    mockQuery.mockResolvedValue(successResponse("你好"));
   });
 
   it("translates each item separately when APR=true", async () => {
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello", "world"],
@@ -141,14 +149,11 @@ describe("V2 translateBatch", () => {
     expect(result.code).toBe(200);
     expect(result.data).toHaveLength(2);
     expect(result.data.every((r) => r.success)).toBe(true);
-    // The response surfaces the APR mode that was applied.
     expect(result.apr).toBe(true);
-    // One upstream call per item.
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(mockQuery).toHaveBeenCalledTimes(2);
   });
 
   it("translates as a single combined call when APR=false", async () => {
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello", "world"],
@@ -162,12 +167,10 @@ describe("V2 translateBatch", () => {
     expect(result.code).toBe(200);
     expect(result.data).toHaveLength(2);
     expect(result.apr).toBe(false);
-    // A single combined upstream call.
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an invalid batch with 400 and makes no upstream calls", async () => {
-    const env = createMockEnv();
     const result = await translateBatch(
       { text: [], target_lang: "zh" } as any,
       { env, clientIP: "127.0.0.1" }
@@ -175,26 +178,14 @@ describe("V2 translateBatch", () => {
 
     expect(result.code).toBe(400);
     expect(result.apr).toBe(false);
-    expect(fetch).not.toHaveBeenCalled();
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it("handles APR=true with partial failures (207 Multi-Status)", async () => {
-    let callCount = 0;
-    global.fetch = jest.fn(() => {
-      callCount++;
-      if (callCount === 1) {
-        // First call succeeds
-        return Promise.resolve(mockDeepLResponse("你好"));
-      }
-      // Second call returns error
-      return Promise.resolve({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve("server error"),
-      });
-    }) as jest.Mock;
+    mockQuery
+      .mockResolvedValueOnce(successResponse("你好"))
+      .mockResolvedValueOnce(errorResponse(500));
 
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello", "world"],
@@ -213,15 +204,8 @@ describe("V2 translateBatch", () => {
   });
 
   it("handles APR=true with all failures", async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve("error"),
-      })
-    ) as jest.Mock;
+    mockQuery.mockResolvedValue(errorResponse(500));
 
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello"],
@@ -237,12 +221,9 @@ describe("V2 translateBatch", () => {
     expect(result.data[0].error).toBeDefined();
   });
 
-  it("handles APR=true with fetch exceptions", async () => {
-    global.fetch = jest.fn(() =>
-      Promise.reject(new TypeError("fetch failed"))
-    ) as jest.Mock;
+  it("handles APR=true with query throwing (catch block lines 106-107)", async () => {
+    mockQuery.mockRejectedValue(new Error("query crashed"));
 
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello"],
@@ -255,18 +236,30 @@ describe("V2 translateBatch", () => {
 
     expect(result.code).toBe(207);
     expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBe("query crashed");
+  });
+
+  it("handles APR=true with non-Error throw (catch block lines 106-107)", async () => {
+    mockQuery.mockRejectedValue("string error");
+
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(207);
+    expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBe("Unknown error");
   });
 
   it("handles APR=false combined failure", async () => {
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: false,
-        status: 500,
-        text: () => Promise.resolve("error"),
-      })
-    ) as jest.Mock;
+    mockQuery.mockResolvedValue(errorResponse(500));
 
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: ["hello", "world"],
@@ -282,12 +275,30 @@ describe("V2 translateBatch", () => {
     expect(result.data.every((r) => !r.success)).toBe(true);
   });
 
-  it("handles APR=false fetch exception", async () => {
-    global.fetch = jest.fn(() =>
-      Promise.reject(new TypeError("fetch failed"))
-    ) as jest.Mock;
+  it("handles APR=false combined mode where query throws (catch block lines 178-185)", async () => {
+    mockQuery.mockRejectedValue(new Error("combined query explosion"));
 
-    const env = createMockEnv();
+    const result = await translateBatch(
+      {
+        text: ["hello", "world"],
+        APR: false,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(500);
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBe("combined query explosion");
+    expect(result.data[1].success).toBe(false);
+    expect(result.data[1].error).toBe("combined query explosion");
+  });
+
+  it("APR=false combined mode with non-Error throw", async () => {
+    mockQuery.mockRejectedValue("string error");
+
     const result = await translateBatch(
       {
         text: ["hello"],
@@ -298,12 +309,12 @@ describe("V2 translateBatch", () => {
       { env, clientIP: "127.0.0.1" }
     );
 
-    expect(result.code).toBeGreaterThanOrEqual(400);
+    expect(result.code).toBe(500);
     expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBe("Unknown error");
   });
 
   it("handles APR=true with non-string text items", async () => {
-    const env = createMockEnv();
     const result = await translateBatch(
       {
         text: [123 as any, "valid"],
@@ -314,7 +325,88 @@ describe("V2 translateBatch", () => {
       { env, clientIP: "127.0.0.1" }
     );
 
-    // Validation should reject the non-string item
     expect(result.code).toBe(400);
+  });
+
+  it("APR=true with one item having error code in query response", async () => {
+    mockQuery
+      .mockResolvedValueOnce(successResponse("translated"))
+      .mockResolvedValueOnce(errorResponse(500));
+
+    const result = await translateBatch(
+      {
+        text: ["hello", "world"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(207);
+    expect(result.data).toHaveLength(2);
+    expect(result.data[0].success).toBe(true);
+    expect(result.data[1].success).toBe(false);
+    expect(result.data[1].error).toBe("Translation failed with code 500");
+  });
+
+  it("APR=true all succeed returns 200", async () => {
+    mockQuery
+      .mockResolvedValueOnce(successResponse("translated1"))
+      .mockResolvedValueOnce(successResponse("translated2"));
+
+    const result = await translateBatch(
+      {
+        text: ["hello", "world"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(200);
+    expect(result.data).toHaveLength(2);
+    expect(result.data.every((r) => r.success)).toBe(true);
+  });
+
+  it("APR=false query returns non-200 code", async () => {
+    mockQuery.mockResolvedValue(errorResponse(500));
+
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: false,
+        source_lang: "en",
+        target_lang: "zh",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(500);
+    expect(result.data[0].success).toBe(false);
+    expect(result.data[0].error).toBe("Translation failed with code 500");
+  });
+
+  it("APR=true with source_lang and target_lang preserved", async () => {
+    const result = await translateBatch(
+      {
+        text: ["hello"],
+        APR: true,
+        source_lang: "en",
+        target_lang: "de",
+      },
+      { env, clientIP: "127.0.0.1" }
+    );
+
+    expect(result.code).toBe(200);
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "hello",
+        source_lang: "en",
+        target_lang: "de",
+      }),
+      expect.objectContaining({ env, clientIP: "127.0.0.1" })
+    );
   });
 });

@@ -26,6 +26,52 @@ jest.mock("../src/lib/cacheWarmer", () => ({
   }),
 }));
 
+jest.mock("../src/lib/rateLimit", () => ({
+  ...jest.requireActual("../src/lib/rateLimit"),
+  checkCombinedRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
+}));
+
+jest.mock("../src/lib/query", () => ({
+  ...jest.requireActual("../src/lib/query"),
+  query: jest.fn().mockResolvedValue({
+    code: 200,
+    data: "translated text",
+    id: 12345,
+    source_lang: "EN",
+    target_lang: "ZH",
+  }),
+  buildRequestBody: jest.fn().mockReturnValue("{}"),
+}));
+
+jest.mock("../src/lib/v2Translate", () => ({
+  ...jest.requireActual("../src/lib/v2Translate"),
+  translateBatch: jest.fn().mockImplementation(async (params: any) => ({
+    code: 200,
+    data: (params.text || []).map((t: string, i: number) => ({
+      text: `translated ${i}`,
+      index: i,
+      success: true,
+    })),
+    apr: params.APR ?? true,
+  })),
+}));
+
+jest.mock("../src/lib/healthCheck", () => ({
+  ...jest.requireActual("../src/lib/healthCheck"),
+  performHealthCheck: jest.fn().mockResolvedValue({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    version: "1.0.0",
+    uptime: 100,
+    checks: {
+      proxies: { status: "healthy", message: "2/2 proxies healthy" },
+      cache: { status: "healthy", message: "Cache KV is accessible" },
+      rateLimit: { status: "healthy", message: "Rate limiter KV is accessible" },
+      performance: { status: "healthy", message: "Success rate: 100.0%" },
+    },
+  }),
+}));
+
 describe("Main App", () => {
   let app: any;
   let mockEnv: Env;
@@ -419,7 +465,6 @@ describe("Main App", () => {
       const r = await app.fetch(new Request("http://localhost/translate"), mockEnv);
       expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
       expect(r.headers.get("X-Frame-Options")).toBe("DENY");
-      // X-XSS-Protection is deprecated and removed
       expect(r.headers.get("X-XSS-Protection")).toBeNull();
     });
   });
@@ -442,6 +487,323 @@ describe("Main App", () => {
 
       await indexModule.default.scheduled(mockEvent, mockEnv, mockContext);
       expect(mockContext.waitUntil).toHaveBeenCalled();
+    });
+  });
+
+  describe("translation.ts — Content-Length > MAX_REQUEST_SIZE → 413 (lines 80-88)", () => {
+    it("should return 413 when Content-Length exceeds MAX_REQUEST_SIZE", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": "40000",
+        },
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(413);
+      const json = await r.json();
+      expect(json.code).toBe(413);
+    });
+  });
+
+  describe("translation.ts — rate limit exceeded → 429 (lines 167-175)", () => {
+    it("should return 429 when rate limit is exceeded", async () => {
+      const { checkCombinedRateLimit } = require("../src/lib/rateLimit");
+      checkCombinedRateLimit.mockResolvedValueOnce({ allowed: false, reason: "Client rate limit exceeded" });
+
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(429);
+      const json = await r.json();
+      expect(json.code).toBe(429);
+    });
+  });
+
+  describe("translation.ts — catch block → error response (lines 263-280)", () => {
+    it("should return error response when checkCombinedRateLimit throws", async () => {
+      const { checkCombinedRateLimit } = require("../src/lib/rateLimit");
+      checkCombinedRateLimit.mockImplementationOnce(() => {
+        throw new Error("Rate limit service unavailable");
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
+        }),
+        mockEnv
+      );
+      expect(r.status).toBeGreaterThanOrEqual(400);
+    });
+  });
+
+  describe("v2.ts — Content-Length > MAX_REQUEST_SIZE → 413 (line 46)", () => {
+    it("should return 413 when Content-Length exceeds MAX_REQUEST_SIZE", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": "40000",
+        },
+        body: JSON.stringify({ text: ["Hello"], target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(413);
+      const json = await r.json();
+      expect(json.code).toBe(413);
+    });
+  });
+
+  describe("v2.ts — JSON parse failure → 400 (line 57)", () => {
+    it("should return 400 for invalid JSON body", async () => {
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "not valid json{{{",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+  });
+
+  describe("v2.ts — rate limit exceeded → 429 (line 84)", () => {
+    it("should return 429 when rate limit is exceeded", async () => {
+      const { checkCombinedRateLimit } = require("../src/lib/rateLimit");
+      checkCombinedRateLimit.mockResolvedValueOnce({ allowed: false, reason: "Client rate limit exceeded" });
+
+      const req = new Request("http://localhost/v2/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: ["Hello"], target_lang: "zh" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(429);
+      const json = await r.json();
+      expect(json.code).toBe(429);
+    });
+  });
+
+  describe("v2.ts — catch block → error response (lines 96-101)", () => {
+    it("should return error response when checkCombinedRateLimit throws", async () => {
+      const { checkCombinedRateLimit } = require("../src/lib/rateLimit");
+      checkCombinedRateLimit.mockImplementationOnce(() => {
+        throw new Error("Rate limit service unavailable");
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/v2/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: ["Hello"], target_lang: "zh" }),
+        }),
+        mockEnv
+      );
+      expect(r.status).toBeGreaterThanOrEqual(400);
+    });
+  });
+
+  describe("debug.ts — buildRequestBody failure catch (lines 102-103)", () => {
+    it("should return 400 when buildRequestBody throws", async () => {
+      mockEnv.DEBUG_MODE = "true";
+      const { buildRequestBody } = require("../src/lib/query");
+      buildRequestBody.mockImplementationOnce(() => {
+        throw new Error("Build failed");
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/debug", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: "Hello", target_lang: "zh" }),
+        }),
+        mockEnv
+      );
+      expect(r.status).toBe(400);
+      const json = await r.json();
+      expect(json.code).toBe(400);
+    });
+  });
+
+  describe("debug.ts — top-level catch block (lines 104-105)", () => {
+    it("should return 400 when req.json() throws (top-level catch)", async () => {
+      const { handleDebug } = require("../src/routes/debug");
+      const throwCtx = {
+        env: { DEBUG_MODE: "true" },
+        req: {
+          json: () => {
+            throw new Error("JSON parse error");
+          },
+          header: () => undefined,
+          raw: new Request("http://localhost/debug", { method: "POST" }),
+        },
+        json: (data: unknown, status?: number) =>
+          new Response(JSON.stringify(data), { status: status ?? 200 }),
+      };
+      const r = await handleDebug(throwCtx);
+      expect(r.status).toBe(400);
+    });
+  });
+
+  describe("health.ts — branch coverage for handleHealthCheck (lines 28-30)", () => {
+    it("should return 503 when health check is unhealthy", async () => {
+      const { performHealthCheck } = require("../src/lib/healthCheck");
+      performHealthCheck.mockResolvedValueOnce({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+        uptime: 100,
+        checks: {
+          proxies: { status: "unhealthy", message: "Critical" },
+          cache: { status: "healthy", message: "OK" },
+          rateLimit: { status: "healthy", message: "OK" },
+          performance: { status: "healthy", message: "OK" },
+        },
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/health", {
+          headers: { "X-API-Key": "test-api-key" },
+        }),
+        { ...mockEnv, ADMIN_API_KEY: "test-api-key" }
+      );
+      expect(r.status).toBe(503);
+      const json = await r.json();
+      expect(json.status).toBe("unhealthy");
+    });
+
+    it("should return 200 when health check is degraded", async () => {
+      const { performHealthCheck } = require("../src/lib/healthCheck");
+      performHealthCheck.mockResolvedValueOnce({
+        status: "degraded",
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+        uptime: 100,
+        checks: {
+          proxies: { status: "degraded", message: "Some unhealthy" },
+          cache: { status: "healthy", message: "OK" },
+          rateLimit: { status: "healthy", message: "OK" },
+          performance: { status: "healthy", message: "OK" },
+        },
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/health", {
+          headers: { "X-API-Key": "test-api-key" },
+        }),
+        { ...mockEnv, ADMIN_API_KEY: "test-api-key" }
+      );
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.status).toBe("degraded");
+    });
+  });
+
+  describe("translation.ts — null params after JSON parse → 400 (line 107)", () => {
+    it("should return 400 when JSON body parses to null", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "null",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+
+    it("should return 400 when JSON body parses to a number", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "42",
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+  });
+
+  describe("translation.ts — invalid language codes → 400 (lines 151-153)", () => {
+    it("should return 400 for invalid source and target language codes", async () => {
+      const req = new Request("http://localhost/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello", source_lang: "x", target_lang: "y" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(400);
+    });
+  });
+
+  describe("debug.ts — isDebugModeEnabled with undefined DEBUG_MODE (line 19)", () => {
+    it("should return 404 when DEBUG_MODE is undefined", async () => {
+      mockEnv.DEBUG_MODE = undefined;
+      const req = new Request("http://localhost/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "Hello" }),
+      });
+      const r = await app.fetch(req, mockEnv);
+      expect(r.status).toBe(404);
+    });
+  });
+
+  describe("health.ts — branch coverage for handleReadiness (lines 52-59)", () => {
+    it("should return 200 when ready status is degraded", async () => {
+      const { performHealthCheck } = require("../src/lib/healthCheck");
+      performHealthCheck.mockResolvedValueOnce({
+        status: "degraded",
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+        uptime: 100,
+        checks: {
+          proxies: { status: "degraded", message: "Some unhealthy" },
+          cache: { status: "healthy", message: "OK" },
+          rateLimit: { status: "healthy", message: "OK" },
+          performance: { status: "healthy", message: "OK" },
+        },
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/health/ready", {
+          headers: { "X-API-Key": "test-api-key" },
+        }),
+        { ...mockEnv, ADMIN_API_KEY: "test-api-key" }
+      );
+      expect(r.status).toBe(200);
+      const json = await r.json();
+      expect(json.ready).toBe(true);
+      expect(json.status).toBe("degraded");
+    });
+
+    it("should return 503 when ready status is unhealthy", async () => {
+      const { performHealthCheck } = require("../src/lib/healthCheck");
+      performHealthCheck.mockResolvedValueOnce({
+        status: "unhealthy",
+        timestamp: new Date().toISOString(),
+        version: "1.0.0",
+        uptime: 100,
+        checks: {
+          proxies: { status: "unhealthy", message: "Critical" },
+          cache: { status: "unhealthy", message: "KV failed" },
+          rateLimit: { status: "healthy", message: "OK" },
+          performance: { status: "healthy", message: "OK" },
+        },
+      });
+
+      const r = await app.fetch(
+        new Request("http://localhost/health/ready", {
+          headers: { "X-API-Key": "test-api-key" },
+        }),
+        { ...mockEnv, ADMIN_API_KEY: "test-api-key" }
+      );
+      expect(r.status).toBe(503);
+      const json = await r.json();
+      expect(json.ready).toBe(false);
+      expect(json.status).toBe("unhealthy");
     });
   });
 });

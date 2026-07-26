@@ -115,6 +115,36 @@ describe("Logger Module", () => {
       const entry = createLogEntry("info", "no analytics");
       expect(() => writeLog(envNoAnalytics, entry)).not.toThrow();
     });
+
+    it("should catch and log Analytics write errors (line 81)", () => {
+      (mockEnv.ANALYTICS.writeDataPoint as jest.Mock).mockImplementation(
+        () => {
+          throw new Error("Analytics engine unavailable");
+        }
+      );
+
+      const entry = createLogEntry("info", "test analytics failure");
+      writeLog(mockEnv, entry);
+
+      expect(console.error).toHaveBeenCalledWith(
+        "Analytics write failed:",
+        expect.objectContaining({ message: "Analytics engine unavailable" })
+      );
+    });
+
+    it("should still write to console even when Analytics throws", () => {
+      (mockEnv.ANALYTICS.writeDataPoint as jest.Mock).mockImplementation(
+        () => {
+          throw new Error("Analytics write failed");
+        }
+      );
+
+      jest.clearAllMocks();
+      const entry = createLogEntry("warn", "test warning with analytics failure");
+      writeLog(mockEnv, entry);
+
+      expect(console.warn).toHaveBeenCalled();
+    });
   });
 
   describe("logger", () => {
@@ -143,6 +173,17 @@ describe("Logger Module", () => {
     it("logger.debug should create and write a debug entry", () => {
       logger.debug(mockEnv, "test debug");
       expect(console.log).toHaveBeenCalled();
+    });
+
+    it("logger should include metadata in log entries", () => {
+      logger.info(mockEnv, "with metadata", {
+        metadata: { key: "value", nested: { a: 1 } },
+      });
+      expect(console.log).toHaveBeenCalled();
+    });
+
+    it("logger should handle undefined env", () => {
+      expect(() => logger.info(undefined, "no env")).not.toThrow();
     });
   });
 });
