@@ -2,8 +2,6 @@
 
 > Serverless Translation API — Fork of [xixu-me/DeepLX](https://github.com/xixu-me/DeepLX), rebranded and hardened for production.
 
-***[汉语](README.zh.md)***
-
 [![License](https://img.shields.io/github/license/Fahry-a/STA)](./LICENSE)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-orange?logo=cloudflare)](#self-deployment)
 

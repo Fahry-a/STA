@@ -19,6 +19,7 @@ STA is a serverless translation service optimized for Cloudflare Workers. It pro
 - `bun run test:integration` - Run integration tests (tests/integration/)
 - `bun run test:performance` - Run performance tests (tests/performance/)
 - `bun run test:coverage` - Generate coverage report
+- `bun run test:endpoints` - Test all API endpoints (scripts/test-endpoints.mjs)
 - `bun run test:watch` - Run tests in watch mode
 - `bun run test:debug` - Run tests with Node debugging enabled
 
