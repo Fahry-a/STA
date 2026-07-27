@@ -176,7 +176,7 @@ Two-level cache with automatic promotion:
 1. **In-memory LRU** — Doubly-linked list, O(1) get/set/evict, max 1000 entries
 2. **Cloudflare KV** — Persistent, 1-hour TTL, promoted to memory on hit
 
-Cache key: SHA-256 of `text:source_lang:target_lang:provider`. Scheduled cron does gradual TTL-based eviction (not full wipe).
+Cache key: FNV-1a (64-bit) of `text:source_lang:target_lang:provider`. Scheduled cron does gradual TTL-based eviction (not full wipe).
 
 ### Rate limiting
 
@@ -278,10 +278,10 @@ https://proxy0.example.com/jsonrpc,https://proxy1.example.com/jsonrpc
 
 ### Security
 
-- Health check at `/health` exposes internal stats (proxy health, cache size) — **no auth required**. Consider restricting in production.
+- Health check `/health` and readiness `/health/ready` require `X-API-Key` header (same as admin endpoints). Liveness `/health/live` is intentionally unauthenticated for load balancer probes.
 - Admin endpoints fail-closed: if `ADMIN_API_KEY` is unset, all admin requests return 401.
-- Rate limiting uses fail-closed behavior (rejects on KV failure) via `FAIL_SAFE_ON_ERROR` in `securityConfig.ts`.
-- CORS is set to `*` — consider restricting for production use.
+- Rate limiting uses fail-open behavior (allows on KV failure) via `FAIL_SAFE_ON_ERROR` in `securityConfig.ts`.
+- CORS is set to `*` by design — this is a **public API** with no auth on translation endpoints. Restrict `CORS_ORIGINS` in `securityConfig.ts` if deploying for a specific client.
 
 ### Types
 
@@ -298,7 +298,7 @@ https://proxy0.example.com/jsonrpc,https://proxy1.example.com/jsonrpc
 ### Performance
 
 - LRU cache uses a doubly-linked list for O(1) promotion (not Map re-insertion).
-- SHA-256 cache key generation is async (`crypto.subtle.digest`) — runs on every request.
+- FNV-1a cache key generation is synchronous and fast (not SHA-256) — uses BigInt arithmetic, runs on every request.
 - Proxy selection uses weighted random (not round-robin) to naturally favor healthy endpoints.
 
 ---

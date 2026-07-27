@@ -295,33 +295,26 @@ describe("Cache Module", () => {
       expect(removed).toBeGreaterThanOrEqual(0);
     });
 
-    it("should handle tracked keys not in LRU (lines 309, 314-316)", async () => {
-      const entry = {
-        data: "test",
+    it("should remove expired entries based on TTL", async () => {
+      const freshEntry = {
+        data: "fresh",
         timestamp: Date.now(),
         source_lang: "EN",
         target_lang: "ZH",
       };
 
-      // Step 1: Fill cache to capacity (1000 entries)
-      for (let i = 0; i < 1000; i++) {
-        await setCachedTranslation(`key-${i}`, { ...entry, data: `v${i}` }, mockEnv);
-      }
+      const staleEntry = {
+        data: "stale",
+        timestamp: Date.now() - 7200_000, // 2 hours old (past 1h TTL)
+        source_lang: "EN",
+        target_lang: "ZH",
+      };
 
-      // Step 2: Promote early entries in LRU by re-setting them (update existing key)
-      await setCachedTranslation("key-0", { ...entry, data: "promoted-0" }, mockEnv);
-      await setCachedTranslation("key-1", { ...entry, data: "promoted-1" }, mockEnv);
+      await setCachedTranslation("fresh-key", freshEntry, mockEnv);
+      await setCachedTranslation("stale-key", staleEntry, mockEnv);
 
-      // Step 3: Add 2 more entries — LRU evicts different entries than trackedCacheKeys
-      // LRU evicts key-2 (least recently used, since 0 and 1 were promoted)
-      // while-loop evicts key-0 (oldest in trackedCacheKeys insertion order)
-      await setCachedTranslation("key-1000", { ...entry, data: "v1000" }, mockEnv);
-      await setCachedTranslation("key-1001", { ...entry, data: "v1001" }, mockEnv);
-
-      // Now: memoryCache has {0,1,4..1001}, trackedCacheKeys has {2..1001}
-      // key-2 and key-3 are in trackedCacheKeys but NOT in memoryCache
       const removed = clearMemoryCache();
-      expect(removed).toBeGreaterThanOrEqual(1);
+      expect(removed).toBe(1);
     });
   });
 

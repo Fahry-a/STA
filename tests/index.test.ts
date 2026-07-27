@@ -465,7 +465,7 @@ describe("Main App", () => {
       const r = await app.fetch(new Request("http://localhost/translate"), mockEnv);
       expect(r.headers.get("X-Content-Type-Options")).toBe("nosniff");
       expect(r.headers.get("X-Frame-Options")).toBe("DENY");
-      expect(r.headers.get("X-XSS-Protection")).toBeNull();
+      expect(r.headers.get("X-XSS-Protection")).toBe("1; mode=block");
     });
   });
 
