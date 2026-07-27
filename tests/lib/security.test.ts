@@ -18,7 +18,7 @@ describe("Security Module", () => {
       expect(SECURITY_HEADERS["X-Frame-Options"]).toBe("DENY");
       expect(SECURITY_HEADERS["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
       expect(SECURITY_HEADERS["Content-Security-Policy"]).toContain("default-src 'self'");
-      expect(SECURITY_HEADERS["X-XSS-Protection"]).toBeUndefined();
+      expect(SECURITY_HEADERS["X-XSS-Protection"]).toBe("1; mode=block");
     });
   });
 

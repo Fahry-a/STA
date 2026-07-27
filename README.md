@@ -72,101 +72,183 @@ graph TB
         APIClient[API Client]
     end
 
-    %% Cloudflare Workers Layer
-    subgraph "Cloudflare Workers"
+    %% Edge Gateway
+    subgraph "Cloudflare Edge"
+        LB[Global Load Balancer]
+        Liveness[GET /health/live<br/>No Auth]
+    end
+
+    %% Hono Router & Endpoints
+    subgraph "Hono Router"
         direction TB
-        Router[Hono Router]
-        
-        subgraph "API Endpoints"
+        Router[Router]
+
+        subgraph "Translation Endpoints"
             DeepL[POST /deepl]
             Google[POST /google]
-            Translate[POST /translate]
+            V2[POST /v2/translate]
+            Legacy[POST /translate]
+        end
+
+        subgraph "Debug Endpoint"
             Debug[POST /debug]
+            DebugGate{DEBUG_MODE}
         end
-        
-        subgraph "Core Middleware & Components"
-            CORS[CORS Handler]
-            Security[Security Middleware]
-            RateLimit[Rate Limiting System]
-            Cache[Dual-layer Cache<br/>Memory + KV]
-        end
-        
-        subgraph "Translation Services"
-            QueryEngine[DeepL Query Engine]
-            GoogleService[Google Translate Service]
-        end
-        
-        subgraph "Support Systems"
-            ProxyManager[Proxy Manager<br/>& Load Balancer]
-            CircuitBreaker[Circuit Breaker]
-            RetryLogic[Retry Logic]
-            ErrorHandler[Error Handler]
+
+        subgraph "Monitoring Endpoints"
+            Health[GET /health]
+            Ready[GET /health/ready]
+            Metrics[GET /metrics]
+            CacheWarm[POST /admin/warm-cache]
         end
     end
 
-    %% Storage Layer
-    subgraph "Cloudflare Storage"
-        CacheKV[(Cache KV<br/>Translation Results)]
-        RateLimitKV[(Rate Limit KV<br/>Token Buckets)]
-        Analytics[(Analytics Engine<br/>Metrics & Monitoring)]
+    %% Middleware Pipeline
+    subgraph "Request Pipeline"
+        direction TB
+        CORS[CORS & Security Headers]
+        ContentType{Content-Type<br/>application/json?}
+        SizeCheck{Content-Length<br/>under 32KB?}
+        Parse[JSON Body Parse]
+        Validate[Input Validation<br/>text, source, target]
+        AuthCheck{X-API-Key<br/>Admin Auth?}
+    end
+
+    %% Rate Limiting
+    subgraph "Rate Limiting"
+        direction TB
+        SlidingWindow[Sliding Window<br/>Burst Protection]
+        TokenBucket[Token Bucket<br/>Client IP + Proxy]
+        RateLimitKV[(KV Backup<br/>1h TTL)]
+    end
+
+    %% Cache System
+    subgraph "Two-Level Cache"
+        direction LR
+        MemoryCache[Memory LRU<br/>1000 entries<br/>O1 get/set]
+        KVCache[Cloudflare KV<br/>1h TTL<br/>Persistent]
+    end
+
+    %% Translation Engines
+    subgraph "Translation Providers"
+        direction TB
+        DeepLQuery[DeepL Query Engine]
+        GoogleService[Google Translate]
+        V2Batch[V2 Batch Engine<br/>APR mode]
+    end
+
+    %% Proxy & Resilience
+    subgraph "Proxy Layer"
+        direction TB
+        ProxyManager[Proxy Manager<br/>Weighted Random]
+        Fingerprint[Browser Fingerprint<br/>5 UA × 5 Accept-Lang]
+        Retry[Exponential Backoff<br/>Max 3 retries + jitter]
+        CircuitBreaker[Circuit Breaker<br/>3 fails → 30s cooldown]
+        HealthTracker[Health Tracking<br/>EMA response time]
     end
 
     %% External Services
-    subgraph "External Translation APIs"
-        DeepLAPI[DeepL JSONRPC API<br/>www2.deepl.com]
-        GoogleAPI[Google Translate API<br/>translate.google.com]
-        XDPL[XDPL Proxy Cluster<br/>Multiple Vercel Instances]
+    subgraph "External"
+        XDPL[XDPL Proxy Cluster]
+        DeepLAPI[DeepL JSONRPC<br/>www2.deepl.com]
+        GoogleAPI[Google Translate<br/>translate.google.com]
     end
 
-    %% Request Flow Connections
-    APIClient --> Router
-    Router --> CORS
-    CORS --> DeepL
-    CORS --> Google
-    CORS --> Translate
-    CORS --> Debug
-    
-    DeepL --> Security
-    Google --> Security
-    Translate --> Security
-    Debug --> Security
-    
-    Security --> RateLimit
-    RateLimit --> Cache
-    
-    Cache --> QueryEngine
-    Cache --> GoogleService
-    
-    QueryEngine --> ProxyManager
-    GoogleService --> GoogleAPI
-    
-    ProxyManager --> CircuitBreaker
-    CircuitBreaker --> RetryLogic
-    RetryLogic --> ErrorHandler
-    
-    %% External API Connections
-    ProxyManager -.-> XDPL
-    XDPL -.-> DeepLAPI
-    
-    %% Storage Connections
-    Cache -.-> CacheKV
-    RateLimit -.-> RateLimitKV
-    Router -.-> Analytics
+    %% Observability
+    subgraph "Observability"
+        Logger[Structured Logger]
+        PerfTracker[Performance Tracker]
+        MetricsCollector[Metrics Collector]
+        ErrorHandler[Error Handler<br/>Sanitized Responses]
+        Analytics[(Analytics Engine)]
+    end
 
-    %% Styles
+    %% Flow: Request Routing
+    APIClient --> LB --> Router
+
+    %% Flow: Translation endpoints (shared pipeline)
+    Router --> DeepL & Google & Legacy & V2
+    DeepL & Google & Legacy & V2 --> CORS
+    CORS --> ContentType
+    ContentType -- yes --> SizeCheck
+    ContentType -- no --> Reject415[415 Unsupported Media Type]
+    SizeCheck -- ok --> Parse
+    SizeCheck -- too large --> Reject413[413 Payload Too Large]
+    Parse --> Validate
+    Validate -- invalid --> Reject400[400 Bad Request]
+    Validate -- valid --> SlidingWindow
+    SlidingWindow -- burst denied --> Reject429[429 Rate Limited]
+    SlidingWindow -- ok --> TokenBucket
+    TokenBucket -- denied --> Reject429
+    TokenBucket -- ok --> MemoryCache
+
+    %% Flow: Cache lookup
+    MemoryCache -- hit --> ResponseOK[200 OK]
+    MemoryCache -- miss --> KVCache
+    KVCache -- hit --> MemoryCache
+    KVCache -- miss --> DeepLQuery & GoogleService & V2Batch
+
+    %% Flow: DeepL translation path
+    DeepLQuery --> ProxyManager
+    ProxyManager --> Fingerprint
+    Fingerprint --> HealthTracker
+    HealthTracker --> CircuitBreaker
+    CircuitBreaker --> Retry
+    Retry -.-> XDPL
+    XDPL -.-> DeepLAPI
+
+    %% Flow: Google translation path
+    GoogleService -.-> GoogleAPI
+
+    %% Flow: V2 batch
+    V2Batch --> DeepLQuery
+
+    %% Flow: Debug endpoint
+    Router --> Debug
+    Debug --> DebugGate
+    DebugGate -- "true" --> DebugResponse[200: Request Body]
+    DebugGate -- "false" --> Reject404[404 Not Found]
+
+    %% Flow: Admin endpoints
+    Router --> Health & Ready & Metrics & CacheWarm
+    Health & Ready & Metrics & CacheWarm --> AuthCheck
+    AuthCheck -- valid --> HealthCheckLogic
+    AuthCheck -- invalid --> Reject401[401 Unauthorized]
+
+    %% Flow: Liveness
+    Router --> Liveness
+
+    %% Observability
+    Router -.-> Analytics
+    PerfTracker -.-> Analytics
+    MetricsCollector -.-> Analytics
+    ErrorHandler -.-> Logger
+
+    %% Cache writes
+    DeepLQuery & GoogleService -- cache result --> MemoryCache
+    MemoryCache -.-> KVCache
+
+    %% Styling
     classDef clientClass fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-    classDef workerClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef routerClass fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef endpointClass fill:#e8eaf6,stroke:#5c6bc0,stroke-width:2px
     classDef middlewareClass fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
-    classDef serviceClass fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    classDef storageClass fill:#fce4ec,stroke:#e91e63,stroke-width:2px
+    classDef cacheClass fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    classDef providerClass fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef resilienceClass fill:#fbe9e7,stroke:#d84315,stroke-width:2px
     classDef externalClass fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+    classDef storageClass fill:#fce4ec,stroke:#e91e63,stroke-width:2px
+    classDef rejectClass fill:#ffcdd2,stroke:#c62828,stroke-width:2px
 
     class APIClient clientClass
-    class Router,DeepL,Google,Translate,Debug workerClass
-    class CORS,Security,RateLimit,Cache middlewareClass
-    class QueryEngine,GoogleService,ProxyManager,CircuitBreaker,RetryLogic,ErrorHandler serviceClass
-    class CacheKV,RateLimitKV,Analytics storageClass
-    class DeepLAPI,GoogleAPI,XDPL externalClass
+    class Router,DeepL,Google,Legacy,V2,Debug,Health,Ready,Metrics,CacheWarm routerClass
+    class CORS,ContentType,SizeCheck,Parse,Validate,AuthCheck middlewareClass
+    class MemoryCache,KVCache cacheClass
+    class DeepLQuery,GoogleService,V2Batch providerClass
+    class ProxyManager,Fingerprint,Retry,CircuitBreaker,HealthTracker resilienceClass
+    class XDPL,DeepLAPI,GoogleAPI externalClass
+    class Analytics storageClass
+    class Reject400,Reject401,Reject404,Reject413,Reject415,Reject429 rejectClass
 ```
 
 ## Hosted Service
@@ -401,62 +483,147 @@ Refer to [Advanced Options](https://github.com/Byaidu/PDFMathTranslate?tab=readm
 
 ### Prerequisites
 
-- Bun 1.0+
-- Cloudflare Workers account
-- Wrangler CLI
+- [Bun](https://bun.sh) 1.0+
+- [Cloudflare Workers](https://workers.cloudflare.com/) account
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) (bundled via `bunx wrangler`)
 
-### 1. Clone Repository
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/Fahry-a/STA.git
 cd STA
-```
-
-### 2. Install Dependencies
-
-```bash
 bun install
 ```
 
-### 3. Configure Environment
+### 2. Understanding Secrets vs Variables
 
-Edit the `wrangler.jsonc` file and update the following configuration:
+There are **three** runtime values — two secrets and one plain variable:
+
+| Name | Type | Where to set | Purpose |
+|------|------|-------------|---------|
+| `PROXY_URLS` | **Secret** | `wrangler secret put PROXY_URLS` (prod) or `.dev.vars` (local) | Comma-separated XDPL proxy endpoints (must include `/jsonrpc`) |
+| `ADMIN_API_KEY` | **Secret** | `wrangler secret put ADMIN_API_KEY` (prod) or `.dev.vars` (local) | Protects `/metrics`, `/admin/*`, and `/health` endpoints |
+| `DEBUG_MODE` | **Variable** | `wrangler.jsonc` → `vars.DEBUG_MODE` | Set to `"true"` to enable `/debug` endpoint |
+
+> `PROXY_URLS` and `ADMIN_API_KEY` are **never** committed to the repo. They are
+> injected at runtime via Cloudflare Secrets or local `.dev.vars`. `DEBUG_MODE`
+> lives in `wrangler.jsonc` because it is not sensitive.
+
+### 3. Configure `wrangler.jsonc`
+
+Open `wrangler.jsonc` and update these fields:
 
 ```jsonc
 {
-  "account_id": "YOUR_CLOUDFLARE_ACCOUNT_ID",
-  "name": "YOUR_WORKER_NAME",
+  "name": "my-sta-instance",         // Change to your worker name
+  "kv_namespaces": [
+    {
+      "binding": "CACHE_KV",
+      "id": "REPLACE_ME"             // Replace with your KV namespace ID
+    },
+    {
+      "binding": "RATE_LIMIT_KV",
+      "id": "REPLACE_ME"             // Replace with your KV namespace ID
+    }
+  ],
   "vars": {
-    "DEBUG_MODE": "false"
+    "DEBUG_MODE": "false"             // Set "true" to enable /debug endpoint
   }
 }
 ```
 
-> **Note:** `PROXY_URLS` is treated as a secret — it is not committed in
-> `wrangler.jsonc`. Set it via `wrangler secret put PROXY_URLS` for production
-> (or `.dev.vars` for local `wrangler dev`). See `.dev.vars.example`.
+**What to keep as-is:** `$schema`, `compatibility_date`, `main`,
+`observability`, `placement`, `triggers` — these are pre-configured defaults.
+
+**Routes:** If deploying to a custom domain, uncomment and update the `routes`
+block. Otherwise, add `"workers_dev": true` to deploy at
+`https://my-sta-instance.your-subdomain.workers.dev`.
 
 ### 4. Create KV Namespaces
 
-```bash
-# Create cache KV namespace
-bunx wrangler kv namespace create "CACHE_KV"
+Each deployment needs its own KV namespaces. Run these commands and **copy the
+returned IDs** (the `id` field):
 
-# Create rate limit KV namespace  
+```bash
+bunx wrangler kv namespace create "CACHE_KV"
+# → { "id": "abc123...", ... }
+
 bunx wrangler kv namespace create "RATE_LIMIT_KV"
+# → { "id": "def456...", ... }
 ```
 
-Update the returned namespace IDs to the `kv_namespaces` configuration in `wrangler.jsonc`.
+Paste the IDs into the `kv_namespaces` section of `wrangler.jsonc`.
 
-### 5. Deploy to Cloudflare Workers
+> The Analytics Engine dataset (`sta-analytics`) is auto-created on first deploy.
+> No manual setup needed.
+
+### 5. Set Secrets
+
+#### For Local Development
+
+Copy and fill in `.dev.vars`:
 
 ```bash
-# Development environment
+cp .dev.vars.example .dev.vars
+```
+
+Edit `.dev.vars`:
+
+```ini
+# Required — comma-separated XDPL proxy endpoints
+PROXY_URLS=https://your-xdpl-1.vercel.app/jsonrpc,https://your-xdpl-2.vercel.app/jsonrpc
+
+# Required — protects admin endpoints. Generate a strong random key:
+ADMIN_API_KEY=$(openssl rand -hex 32)
+```
+
+#### For Production
+
+```bash
+# Required — comma-separated XDPL proxy endpoints
+echo "https://your-xdpl-1.vercel.app/jsonrpc,https://your-xdpl-2.vercel.app/jsonrpc" | \
+  bunx wrangler secret put PROXY_URLS
+
+# Required — protects admin endpoints
+openssl rand -hex 32 | bunx wrangler secret put ADMIN_API_KEY
+```
+
+> Secrets set via `wrangler secret put` persist across deploys. You only need to
+> set them once per environment.
+
+### 6. Deploy
+
+```bash
+# Local development (hot-reloads on file changes)
 bun run dev
 
 # Production deployment
 bun run deploy
 ```
+
+After deployment, verify the service is running:
+
+```bash
+# Liveness check (no auth required)
+curl https://my-sta-instance.your-subdomain.workers.dev/health/live
+
+# Health check (requires ADMIN_API_KEY)
+curl -H "X-API-Key: YOUR_ADMIN_API_KEY" \
+  https://my-sta-instance.your-subdomain.workers.dev/health
+```
+
+### CI/CD Deployment (Recommended)
+
+The repo includes production-grade CI/CD workflows (`.github/workflows/`):
+
+1. Fork the repo on GitHub
+2. Add these repository secrets:
+   - `CLOUDFLARE_API_TOKEN` — Cloudflare API token with Workers permissions
+   - `CLOUDFLARE_ACCOUNT_ID` — your Cloudflare account ID
+   - `PROXY_URLS` — same as above
+   - `ADMIN_API_KEY` — same as above
+3. Push to `main` → CI runs lint + test → on success, Deploy runs lint + test
+   again (belt-and-suspenders) then deploys
 
 ## Proxy Endpoint Deployment
 
@@ -485,6 +652,7 @@ For local development, use `.dev.vars` (see `.dev.vars.example`).
 |----------|----------|-------------|---------|
 | `/deepl` | DeepL | Primary DeepL translation endpoint | **Recommended** |
 | `/google` | Google Translate | Google Translate endpoint | Active |
+| `/v2/translate` | DeepL | Batch translation with APR support | Active |
 | `/translate` | DeepL | Legacy endpoint (uses DeepL) | Legacy |
 
 ### `/deepl` (Recommended)
@@ -537,6 +705,61 @@ For local development, use `.dev.vars` (see `.dev.vars.example`).
   "source_lang": "Detected source language code",
   "target_lang": "Target language code"
 }
+```
+
+### `/v2/translate` — Batch Translation
+
+**Request Method**: `POST`
+
+**Request Headers**: `Content-Type: application/json`
+
+**Request Parameters**:
+
+| Parameter | Type | Description | Required |
+| - | - | - | - |
+| `text`        | string[] | Array of texts to translate | Yes |
+| `source_lang` | string | Source language code | No, default `AUTO` |
+| `target_lang` | string | Target language code | No, default `EN` |
+| `APR`         | boolean | Array Per Request mode | No, default `true` |
+
+> `APR=true` sends each text as a separate request (parallel). `APR=false` joins all texts with newlines and sends a single request, then splits the response back. For large batches or many unique texts, `APR=true` is recommended.
+
+**Response (200 / 207 Multi-Status)**:
+
+```json
+{
+  "code": 200,
+  "apr": true,
+  "data": [
+    {
+      "text": "Translated text 1",
+      "index": 0,
+      "detected_source_lang": "EN",
+      "success": true
+    },
+    {
+      "text": "Translated text 2",
+      "index": 1,
+      "detected_source_lang": "EN",
+      "success": true
+    }
+  ],
+  "id": 1234567890
+}
+```
+
+**Error Codes**: 207 indicates partial success (some items failed). Each item has its own `success` and `error` fields.
+
+**cURL Example**:
+```bash
+curl -X POST https://sta.oryn.my.id/v2/translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": ["Hello, world!", "How are you?"],
+    "source_lang": "EN",
+    "target_lang": "FR",
+    "APR": true
+  }'
 ```
 
 ### `/translate` (Legacy)

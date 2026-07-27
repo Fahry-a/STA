@@ -197,7 +197,7 @@ function getTimestamp(letterCount: number) {
  * @returns JSON string ready for API submission
  * @private
  */
-function buildRequestBody(data: RequestParams) {
+function buildRequestBody(data: RequestParams, debugMode?: boolean) {
   // Validate input parameters
   if (!data || !data.text || typeof data.text !== "string") {
     throw new Error(
@@ -223,11 +223,7 @@ function buildRequestBody(data: RequestParams) {
   const sourceLang = data.source_lang || "auto";
   const targetLang = data.target_lang || "en";
 
-  // Log language normalization for debugging (only in debug mode)
-  const debugGlobal = globalThis as typeof globalThis & {
-    DEBUG_MODE?: boolean;
-  };
-  if (typeof globalThis !== "undefined" && debugGlobal.DEBUG_MODE) {
+  if (debugMode) {
     if (sourceLang !== "auto") {
       logger.debug(undefined, `Source language normalized: ${sourceLang}`);
     }
@@ -317,7 +313,8 @@ async function query(
         const requestStartTime = Date.now();
 
         try {
-          const requestBody = buildRequestBody(params);
+          const debugMode = config?.env?.DEBUG_MODE === "true" || config?.env?.DEBUG_MODE === "1";
+          const requestBody = buildRequestBody(params, debugMode);
 
           const response = await fetch(endpoint, {
             headers: {
