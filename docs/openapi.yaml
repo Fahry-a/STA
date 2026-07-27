@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: STA API
-  version: 1.0.0
+  version: 2.0.0
   description: |
     Free serverless translation API powered by DeepL and Google Translate.
     No API keys required for translation endpoints.

@@ -61,7 +61,7 @@ jest.mock("../src/lib/observability/healthCheck", () => ({
   performHealthCheck: jest.fn().mockResolvedValue({
     status: "healthy",
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
+    version: "2.0.0",
     uptime: 100,
     checks: {
       proxies: { status: "healthy", message: "2/2 proxies healthy" },
@@ -656,7 +656,7 @@ describe("Main App", () => {
       performHealthCheck.mockResolvedValueOnce({
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        version: "2.0.0",
         uptime: 100,
         checks: {
           proxies: { status: "unhealthy", message: "Critical" },
@@ -682,7 +682,7 @@ describe("Main App", () => {
       performHealthCheck.mockResolvedValueOnce({
         status: "degraded",
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        version: "2.0.0",
         uptime: 100,
         checks: {
           proxies: { status: "degraded", message: "Some unhealthy" },
@@ -757,7 +757,7 @@ describe("Main App", () => {
       performHealthCheck.mockResolvedValueOnce({
         status: "degraded",
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        version: "2.0.0",
         uptime: 100,
         checks: {
           proxies: { status: "degraded", message: "Some unhealthy" },
@@ -784,7 +784,7 @@ describe("Main App", () => {
       performHealthCheck.mockResolvedValueOnce({
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        version: "1.0.0",
+        version: "2.0.0",
         uptime: 100,
         checks: {
           proxies: { status: "unhealthy", message: "Critical" },

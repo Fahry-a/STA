@@ -29,7 +29,7 @@ export interface HealthCheckItem {
 }
 
 const startTime = Date.now();
-const SERVICE_VERSION = "1.0.0";
+const SERVICE_VERSION = "2.0.0";
 
 /**
  * Check proxy health
