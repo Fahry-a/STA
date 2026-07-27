@@ -7,10 +7,13 @@ https://sta.oryn.my.id
 
 ## Authentication
 
+Translation endpoints are **public** — no API key needed. Health and admin endpoints require an `X-API-Key` header. Your API key is the `ADMIN_API_KEY` value configured during deployment (see [Self-Deployment](../README.md#5-set-secrets)).
+
 | Endpoint | Auth Required |
 |----------|--------------|
 | Translation endpoints (`/deepl`, `/google`, `/translate`, `/v2/translate`) | No |
-| Health endpoints (`/health`, `/health/ready`) | Yes — `X-API-Key` header |
+| Health check (`/health`) | Yes — `X-API-Key` header |
+| Readiness check (`/health/ready`) | Yes — `X-API-Key` header |
 | Liveness probe (`/health/live`) | No |
 | Admin endpoints (`/metrics`, `/admin/*`) | Yes — `X-API-Key` header |
 
@@ -158,11 +161,11 @@ curl -X POST https://sta.oryn.my.id/debug \
 ## Health Endpoints
 
 ### GET /health
-Comprehensive health status of all service components.
+Comprehensive health status of all service components. Requires `X-API-Key` header.
 
 **Request:**
 ```bash
-curl https://sta.oryn.my.id/health
+curl -H "X-API-Key: YOUR_API_KEY" https://sta.oryn.my.id/health
 ```
 
 **Response (200):**
@@ -195,11 +198,11 @@ curl https://sta.oryn.my.id/health/live
 ```
 
 ### GET /health/ready
-Readiness check — returns whether the service can handle requests.
+Readiness check — returns whether the service can handle requests. Requires `X-API-Key` header.
 
 **Request:**
 ```bash
-curl https://sta.oryn.my.id/health/ready
+curl -H "X-API-Key: YOUR_API_KEY" https://sta.oryn.my.id/health/ready
 ```
 
 **Response (200):**

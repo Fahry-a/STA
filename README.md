@@ -272,7 +272,9 @@ graph TB
 | `/deepl` | POST | Translate with DeepL |
 | `/google` | POST | Translate with Google |
 | `/v2/translate` | POST | Batch translation (APR support) |
-| `/health` | GET | Health check |
+| `/health` | GET | Health check (auth required) |
+| `/health/live` | GET | Liveness probe (no auth) |
+| `/health/ready` | GET | Readiness check (auth required) |
 | `/metrics` | GET | Performance metrics (auth required) |
 | `/admin/warm-cache` | POST | Trigger cache warming (auth required) |
 | `/admin/cache-status` | GET | Cache warming status (auth required) |
