@@ -3,12 +3,12 @@
  */
 
 import { checkRateLimit, checkCombinedRateLimit, checkProxyRateLimit, delayRequest } from "../../src/lib/rateLimit";
-import { checkSlidingWindowRateLimit } from "../../src/lib/slidingWindowRateLimit";
+import { checkSlidingWindowRateLimit } from "../../src/lib/rateLimit/slidingWindowRateLimit";
 
-jest.mock("../../src/lib/slidingWindowRateLimit", () => ({
+jest.mock("../../src/lib/rateLimit/slidingWindowRateLimit", () => ({
   checkSlidingWindowRateLimit: jest.fn(),
 }));
-jest.mock("../../src/lib/proxyManager", () => ({
+jest.mock("../../src/lib/network/proxyManager", () => ({
   getProxyEndpoints: jest.fn().mockReturnValue([
     { url: "https://test1.example.com/jsonrpc", weight: 1 },
     { url: "https://test2.example.com/jsonrpc", weight: 1 },

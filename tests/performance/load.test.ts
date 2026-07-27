@@ -27,7 +27,7 @@ describe("Performance Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const startTime = Date.now();
 
@@ -119,7 +119,7 @@ describe("Performance Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const concurrentRequests = 50;
       const startTime = Date.now();
@@ -187,7 +187,7 @@ describe("Performance Tests", () => {
             }),
         });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const startTime = Date.now();
 
@@ -224,7 +224,7 @@ describe("Performance Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const requestCount = 100;
       const results = [];

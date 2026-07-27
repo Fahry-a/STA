@@ -35,7 +35,7 @@ export async function handleDebug(c: DebugContext) {
     const params = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
 
     // Import buildRequestBody from query module for debugging
-    const { buildRequestBody } = await import("../lib/query");
+    const { buildRequestBody } = await import("../lib/providers/query");
 
     if (!params.text || typeof params.text !== "string") {
       return c.json(

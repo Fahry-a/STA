@@ -4,10 +4,10 @@
  * Integrates sliding window rate limiter for burst protection at window boundaries
  */
 
-import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
-import { getProxyEndpoints } from "./proxyManager";
+import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "../config";
+import { getProxyEndpoints } from "../network/proxyManager";
 import { checkSlidingWindowRateLimit } from "./slidingWindowRateLimit";
-import { SECURITY_CONFIG } from "./securityConfig";
+import { SECURITY_CONFIG } from "../security/securityConfig";
 
 interface RateLimitEntry {
   tokens: number;

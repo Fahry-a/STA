@@ -7,15 +7,15 @@ import {
   isRetryableError,
   retryWithBackoff,
   retryWithRateLimit,
-} from "../../src/lib/retryLogic";
+} from "../../src/lib/network/retryLogic";
 
 // Mock delayRequest so retry backoff sleeps are recorded (not actually waited).
 // retryWithBackoff imports delayRequest from ./rateLimit, so we mock that module.
-jest.mock("../../src/lib/rateLimit", () => ({
+jest.mock("../../src/lib/rateLimit/rateLimit", () => ({
   delayRequest: jest.fn().mockResolvedValue(undefined),
 }));
 // Import the mocked function for assertions.
-import { delayRequest } from "../../src/lib/rateLimit";
+import { delayRequest } from "../../src/lib/rateLimit/rateLimit";
 const mockedDelayRequest = delayRequest as jest.MockedFunction<
   typeof delayRequest
 >;

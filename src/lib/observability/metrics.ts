@@ -4,8 +4,8 @@
  */
 
 import { getPerformanceStats } from "./performance";
-import { getProxyEndpoints, getProxyHealthStats } from "./proxyManager";
-import { getMemoryCacheSize } from "./cache";
+import { getProxyEndpoints, getProxyHealthStats } from "../network/proxyManager";
+import { getMemoryCacheSize } from "../cache/cache";
 
 export interface SystemMetrics {
   timestamp: string;

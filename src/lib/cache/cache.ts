@@ -4,7 +4,7 @@
  * In-memory cache uses a doubly-linked list for O(1) LRU eviction
  */
 
-import { logger } from "./logger";
+import { logger } from "../observability/logger";
 
 /**
  * Cache configuration constants

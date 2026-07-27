@@ -2,12 +2,12 @@
  * Tests for health check module
  */
 
-import { performHealthCheck } from "../../src/lib/healthCheck";
-import * as proxyManager from "../../src/lib/proxyManager";
-import * as performance from "../../src/lib/performance";
+import { performHealthCheck } from "../../src/lib/observability/healthCheck";
+import * as proxyManager from "../../src/lib/network/proxyManager";
+import * as performance from "../../src/lib/observability/performance";
 
 // Default healthy mocks
-jest.mock("../../src/lib/proxyManager", () => ({
+jest.mock("../../src/lib/network/proxyManager", () => ({
   getProxyEndpoints: jest.fn().mockReturnValue([
     { url: "https://proxy1.example.com/jsonrpc" },
     { url: "https://proxy2.example.com/jsonrpc" },
@@ -18,7 +18,7 @@ jest.mock("../../src/lib/proxyManager", () => ({
   ]),
 }));
 
-jest.mock("../../src/lib/performance", () => ({
+jest.mock("../../src/lib/observability/performance", () => ({
   getPerformanceStats: jest.fn().mockReturnValue({
     totalRequests: 100,
     successfulRequests: 95,

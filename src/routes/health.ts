@@ -3,8 +3,8 @@
  * Protected by admin API key to prevent exposing internal stats publicly
  */
 
-import { performHealthCheck } from "../lib/healthCheck";
-import { isAdminAuthorized } from "../lib/security";
+import { performHealthCheck } from "../lib/observability/healthCheck";
+import { isAdminAuthorized } from "../lib/security/security";
 
 type HealthContext = {
   env: Env;

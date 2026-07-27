@@ -3,9 +3,9 @@
  * More accurate than fixed window, prevents burst at window boundaries
  */
 
-import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
-import { getProxyEndpoints } from "./proxyManager";
-import { logger } from "./logger";
+import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "../config";
+import { getProxyEndpoints } from "../network/proxyManager";
+import { logger } from "../observability/logger";
 
 interface WindowEntry {
   timestamp: number;

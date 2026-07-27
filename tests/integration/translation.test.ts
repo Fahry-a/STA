@@ -28,7 +28,7 @@ describe("Translation Integration Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const result = await query(
         {
@@ -102,7 +102,7 @@ describe("Translation Integration Tests", () => {
             }),
         });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const result = await query(
         {
@@ -132,7 +132,7 @@ describe("Translation Integration Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const result = await query(
         {
@@ -165,7 +165,7 @@ describe("Translation Integration Tests", () => {
             }),
         });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const result = await query(
         {
@@ -195,7 +195,7 @@ describe("Translation Integration Tests", () => {
           }),
       });
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const promises = Array.from({ length: 10 }, (_, i) =>
         query(
@@ -227,7 +227,7 @@ describe("Translation Integration Tests", () => {
             )
         );
 
-      const { query } = await import("../../src/lib/query");
+      const { query } = await import("../../src/lib/providers/query");
 
       const result = await query(
         {
@@ -245,7 +245,7 @@ describe("Translation Integration Tests", () => {
   describe("Security integration", () => {
     it("should validate and sanitize input", async () => {
       const { validateTranslationRequest } = await import(
-        "../../src/lib/validation"
+        "../../src/lib/providers/validation"
       );
 
       const maliciousInput = {

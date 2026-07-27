@@ -4,7 +4,7 @@
  * Includes health tracking, response time weighting, and smart selection
  */
 
-import { logger } from "./logger";
+import { logger } from "../observability/logger";
 
 /**
  * Collection of realistic browser user agents for fingerprinting

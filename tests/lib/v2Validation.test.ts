@@ -7,7 +7,7 @@ import {
   getV2ItemChargeCount,
   formatCombinedText,
   parseCombinedResponse,
-} from "../../src/lib/v2Validation";
+} from "../../src/lib/providers/v2Validation";
 
 describe("V2 Validation", () => {
   describe("validateV2Request", () => {

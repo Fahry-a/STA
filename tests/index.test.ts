@@ -3,7 +3,7 @@
  * Only external API calls (fetch to DeepL/Google) and KV are mocked.
  */
 
-jest.mock("../src/lib/logger", () => ({
+jest.mock("../src/lib/observability/logger", () => ({
   logger: {
     info: jest.fn(),
     warn: jest.fn(),
@@ -13,7 +13,7 @@ jest.mock("../src/lib/logger", () => ({
   generateRequestId: jest.fn().mockReturnValue("test-request-id"),
 }));
 
-jest.mock("../src/lib/cacheWarmer", () => ({
+jest.mock("../src/lib/cache/cacheWarmer", () => ({
   warmCache: jest.fn().mockResolvedValue({
     warmed: 5,
     failed: 0,
@@ -31,8 +31,8 @@ jest.mock("../src/lib/rateLimit", () => ({
   checkCombinedRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
 }));
 
-jest.mock("../src/lib/query", () => ({
-  ...jest.requireActual("../src/lib/query"),
+jest.mock("../src/lib/providers/query", () => ({
+  ...jest.requireActual("../src/lib/providers/query"),
   query: jest.fn().mockResolvedValue({
     code: 200,
     data: "translated text",
@@ -43,8 +43,8 @@ jest.mock("../src/lib/query", () => ({
   buildRequestBody: jest.fn().mockReturnValue("{}"),
 }));
 
-jest.mock("../src/lib/v2Translate", () => ({
-  ...jest.requireActual("../src/lib/v2Translate"),
+jest.mock("../src/lib/providers/v2Translate", () => ({
+  ...jest.requireActual("../src/lib/providers/v2Translate"),
   translateBatch: jest.fn().mockImplementation(async (params: any) => ({
     code: 200,
     data: (params.text || []).map((t: string, i: number) => ({
@@ -56,8 +56,8 @@ jest.mock("../src/lib/v2Translate", () => ({
   })),
 }));
 
-jest.mock("../src/lib/healthCheck", () => ({
-  ...jest.requireActual("../src/lib/healthCheck"),
+jest.mock("../src/lib/observability/healthCheck", () => ({
+  ...jest.requireActual("../src/lib/observability/healthCheck"),
   performHealthCheck: jest.fn().mockResolvedValue({
     status: "healthy",
     timestamp: new Date().toISOString(),
@@ -611,7 +611,7 @@ describe("Main App", () => {
   describe("debug.ts — buildRequestBody failure catch (lines 102-103)", () => {
     it("should return 400 when buildRequestBody throws", async () => {
       mockEnv.DEBUG_MODE = "true";
-      const { buildRequestBody } = require("../src/lib/query");
+      const { buildRequestBody } = require("../src/lib/providers/query");
       buildRequestBody.mockImplementationOnce(() => {
         throw new Error("Build failed");
       });
@@ -652,7 +652,7 @@ describe("Main App", () => {
 
   describe("health.ts — branch coverage for handleHealthCheck (lines 28-30)", () => {
     it("should return 503 when health check is unhealthy", async () => {
-      const { performHealthCheck } = require("../src/lib/healthCheck");
+      const { performHealthCheck } = require("../src/lib/observability/healthCheck");
       performHealthCheck.mockResolvedValueOnce({
         status: "unhealthy",
         timestamp: new Date().toISOString(),
@@ -678,7 +678,7 @@ describe("Main App", () => {
     });
 
     it("should return 200 when health check is degraded", async () => {
-      const { performHealthCheck } = require("../src/lib/healthCheck");
+      const { performHealthCheck } = require("../src/lib/observability/healthCheck");
       performHealthCheck.mockResolvedValueOnce({
         status: "degraded",
         timestamp: new Date().toISOString(),
@@ -753,7 +753,7 @@ describe("Main App", () => {
 
   describe("health.ts — branch coverage for handleReadiness (lines 52-59)", () => {
     it("should return 200 when ready status is degraded", async () => {
-      const { performHealthCheck } = require("../src/lib/healthCheck");
+      const { performHealthCheck } = require("../src/lib/observability/healthCheck");
       performHealthCheck.mockResolvedValueOnce({
         status: "degraded",
         timestamp: new Date().toISOString(),
@@ -780,7 +780,7 @@ describe("Main App", () => {
     });
 
     it("should return 503 when ready status is unhealthy", async () => {
-      const { performHealthCheck } = require("../src/lib/healthCheck");
+      const { performHealthCheck } = require("../src/lib/observability/healthCheck");
       performHealthCheck.mockResolvedValueOnce({
         status: "unhealthy",
         timestamp: new Date().toISOString(),

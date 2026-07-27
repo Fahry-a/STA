@@ -3,7 +3,7 @@
  * Provides robust error handling with configurable retry strategies
  */
 
-import { delayRequest } from "./rateLimit";
+import { delayRequest } from "../rateLimit/rateLimit";
 
 /**
  * Retry options configuration interface

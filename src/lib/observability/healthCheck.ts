@@ -3,9 +3,9 @@
  * Provides comprehensive service health status
  */
 
-import { getProxyEndpoints, getProxyHealthStats } from "./proxyManager";
+import { getProxyEndpoints, getProxyHealthStats } from "../network/proxyManager";
 import { getPerformanceStats } from "./performance";
-import { checkRateLimit } from "./rateLimit";
+import { checkRateLimit } from "../rateLimit/rateLimit";
 
 export type HealthStatus = "healthy" | "degraded" | "unhealthy";
 

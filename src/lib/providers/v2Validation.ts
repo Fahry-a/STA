@@ -3,7 +3,7 @@
  * Handles batch translation validation with APR support
  */
 
-import { PAYLOAD_LIMITS } from "./config";
+import { PAYLOAD_LIMITS } from "../config";
 
 export interface V2ValidationResult {
   isValid: boolean;

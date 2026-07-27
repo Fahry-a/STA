@@ -3,14 +3,14 @@
  */
 
 import { beforeEach, describe, expect, it } from "@jest/globals";
-import { translateBatch } from "../../src/lib/v2Translate";
+import { translateBatch } from "../../src/lib/providers/v2Translate";
 import {
   getV2ItemChargeCount,
   validateV2Request,
-} from "../../src/lib/v2Validation";
-import * as queryModule from "../../src/lib/query";
+} from "../../src/lib/providers/v2Validation";
+import * as queryModule from "../../src/lib/providers/query";
 
-jest.mock("../../src/lib/query");
+jest.mock("../../src/lib/providers/query");
 
 const mockQuery = queryModule.query as jest.MockedFunction<typeof queryModule.query>;
 

@@ -20,9 +20,9 @@ import {
   endPerformanceTracking,
   translateWithGoogle,
 } from "../lib";
-import { logger, generateRequestId } from "../lib/logger";
-import { createErrorResponse } from "../lib/errorHandler";
-import { validateTranslationRequest } from "../lib/validation";
+import { logger, generateRequestId } from "../lib/observability/logger";
+import { createErrorResponse } from "../lib/observability/errorHandler";
+import { validateTranslationRequest } from "../lib/providers/validation";
 
 type TranslationContext = {
   env: Env;

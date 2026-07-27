@@ -14,7 +14,7 @@ describe("Performance Module", () => {
 
   beforeEach(() => {
     jest.isolateModules(() => {
-      const perf = require("../../src/lib/performance");
+      const perf = require("../../src/lib/observability/performance");
       startPerformanceTracking = perf.startPerformanceTracking;
       updatePerformanceMetrics = perf.updatePerformanceMetrics;
       endPerformanceTracking = perf.endPerformanceTracking;

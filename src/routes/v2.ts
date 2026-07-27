@@ -12,9 +12,9 @@ import {
   createV2Response,
   translateBatch,
 } from "../lib";
-import { createErrorResponse } from "../lib/errorHandler";
+import { createErrorResponse } from "../lib/observability/errorHandler";
 import type { V2RequestParams } from "../lib/types";
-import type { V2ValidationResult } from "../lib/v2Validation";
+import type { V2ValidationResult } from "../lib/providers/v2Validation";
 
 type V2Context = {
   env: Env;

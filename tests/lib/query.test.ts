@@ -6,7 +6,7 @@ import {
   buildRequestBody,
   normalizeLanguageCode,
   query,
-} from "../../src/lib/query";
+} from "../../src/lib/providers/query";
 import { PAYLOAD_LIMITS } from "../../src/lib/config";
 
 describe("Query Module", () => {

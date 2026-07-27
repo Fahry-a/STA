@@ -6,10 +6,10 @@ import {
   checkSlidingWindowRateLimit,
   clearSlidingWindowStorage,
   getRateLimitHeaders,
-} from "../../src/lib/slidingWindowRateLimit";
-import * as proxyManager from "../../src/lib/proxyManager";
+} from "../../src/lib/rateLimit/slidingWindowRateLimit";
+import * as proxyManager from "../../src/lib/network/proxyManager";
 
-jest.mock("../../src/lib/proxyManager");
+jest.mock("../../src/lib/network/proxyManager");
 
 describe("Sliding Window Rate Limiter", () => {
   afterEach(() => {

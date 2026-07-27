@@ -6,14 +6,14 @@ import { Hono } from "hono";
 import {
   clearMemoryCache,
 } from "./lib";
-import { logger } from "./lib/logger";
-import { SECURITY_HEADERS, getSecureClientIP, handleCORSPreflight } from "./lib/security";
+import { logger } from "./lib/observability/logger";
+import { SECURITY_HEADERS, getSecureClientIP, handleCORSPreflight } from "./lib/security/security";
 import { handleTranslation } from "./routes/translation";
 import { handleV2Translation } from "./routes/v2";
 import { handleHealthCheck, handleLiveness, handleReadiness } from "./routes/health";
 import { handleMetrics, handleWarmCache, handleCacheStatus } from "./routes/admin";
 import { handleDebug } from "./routes/debug";
-import { warmCache } from "./lib/cacheWarmer";
+import { warmCache } from "./lib/cache/cacheWarmer";
 
 /**
  * Initialize Hono app with environment bindings

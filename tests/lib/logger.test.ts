@@ -7,7 +7,7 @@ import {
   createLogEntry,
   writeLog,
   logger,
-} from "../../src/lib/logger";
+} from "../../src/lib/observability/logger";
 
 describe("Logger Module", () => {
   let mockEnv: Env;

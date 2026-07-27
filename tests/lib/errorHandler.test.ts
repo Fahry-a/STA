@@ -10,7 +10,7 @@ import {
   isServerError,
   isPayloadTooLargeError,
   enhanceRateLimitError,
-} from "../../src/lib/errorHandler";
+} from "../../src/lib/observability/errorHandler";
 
 describe("Error Handler Module", () => {
   describe("createErrorResponse", () => {

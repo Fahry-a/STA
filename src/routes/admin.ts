@@ -2,9 +2,9 @@
  * Admin route handlers (protected by API key)
  */
 
-import { warmCache, getCacheWarmingStatus } from "../lib/cacheWarmer";
-import { collectMetrics, formatMetricsResponse } from "../lib/metrics";
-import { isAdminAuthorized } from "../lib/security";
+import { warmCache, getCacheWarmingStatus } from "../lib/cache/cacheWarmer";
+import { collectMetrics, formatMetricsResponse } from "../lib/observability/metrics";
+import { isAdminAuthorized } from "../lib/security/security";
 
 type AdminContext = {
   env: Env;

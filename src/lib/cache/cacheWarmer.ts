@@ -15,8 +15,8 @@ import {
   getCachedTranslation,
   setCachedTranslation,
 } from "./cache";
-import { query } from "./query";
-import { logger } from "./logger";
+import { query } from "../providers/query";
+import { logger } from "../observability/logger";
 
 /**
  * Popular translation pairs that benefit from caching

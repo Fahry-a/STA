@@ -9,7 +9,7 @@ import {
   recordProxySuccess,
   recordProxyFailure,
   getProxyHealthStats,
-} from "../../src/lib/proxyManager";
+} from "../../src/lib/network/proxyManager";
 
 describe("Proxy Manager Module", () => {
   let mockEnv: Env;

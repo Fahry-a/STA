@@ -4,13 +4,13 @@
  */
 
 import { DEFAULT_RETRY_CONFIG, PAYLOAD_LIMITS, REQUEST_TIMEOUT } from "../config";
-import { createErrorResponse } from "../errorHandler";
-import { logger } from "../logger";
+import { createErrorResponse } from "../observability/errorHandler";
+import { logger } from "../observability/logger";
 import {
   isRetryableError,
   RetryOptions,
   retryWithBackoff,
-} from "../retryLogic";
+} from "../network/retryLogic";
 import {
   Config,
   createStandardResponse,

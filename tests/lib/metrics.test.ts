@@ -2,9 +2,9 @@
  * Tests for metrics collection module
  */
 
-import { collectMetrics, formatMetricsResponse } from "../../src/lib/metrics";
+import { collectMetrics, formatMetricsResponse } from "../../src/lib/observability/metrics";
 
-jest.mock("../../src/lib/performance", () => ({
+jest.mock("../../src/lib/observability/performance", () => ({
   getPerformanceStats: jest.fn().mockReturnValue({
     totalRequests: 100,
     successfulRequests: 95,
@@ -17,7 +17,7 @@ jest.mock("../../src/lib/performance", () => ({
   }),
 }));
 
-jest.mock("../../src/lib/proxyManager", () => ({
+jest.mock("../../src/lib/network/proxyManager", () => ({
   getProxyEndpoints: jest.fn().mockReturnValue([
     { url: "https://proxy1.example.com/jsonrpc" },
     { url: "https://proxy2.example.com/jsonrpc" },
@@ -28,7 +28,7 @@ jest.mock("../../src/lib/proxyManager", () => ({
   ]),
 }));
 
-jest.mock("../../src/lib/cache", () => ({
+jest.mock("../../src/lib/cache/cache", () => ({
   getMemoryCacheSize: jest.fn().mockReturnValue(42),
 }));
 

@@ -13,24 +13,24 @@ import {
   DEFAULT_RETRY_CONFIG,
   PAYLOAD_LIMITS,
   REQUEST_TIMEOUT,
-} from "./config";
-import { API_URL, REQUEST_ALTERNATIVES } from "./const";
-import { createErrorResponse } from "./errorHandler";
-import { logger } from "./logger";
+} from "../config";
+import { API_URL, REQUEST_ALTERNATIVES } from "../const";
+import { createErrorResponse } from "../observability/errorHandler";
+import { logger } from "../observability/logger";
 import {
   generateBrowserFingerprint,
   recordProxyFailure,
   recordProxySuccess,
   selectProxy,
-} from "./proxyManager";
-import { isRetryableError, RetryOptions, retryWithBackoff } from "./retryLogic";
+} from "../network/proxyManager";
+import { isRetryableError, RetryOptions, retryWithBackoff } from "../network/retryLogic";
 import {
   Config,
   createStandardResponse,
   RawResponseParams,
   RequestParams,
   ResponseParams,
-} from "./types";
+} from "../types";
 
 /**
  * Ensure language code is in uppercase format for consistent output
