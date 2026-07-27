@@ -1,0 +1,73 @@
+/* Hallmark · pre-emit critique: P4 H5 E5 S5 R5 V5 */
+/* Hallmark · tokens.css · Cobalt (dark) — auto-generated */
+/* Source: STA docs page rewrite (Component Playground)       */
+
+:root {
+  /* Fonts */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'Inter', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, monospace;
+
+  /* Paper — dark, cool-tinted */
+  --color-paper:    oklch(14% 0.008 255);
+  --color-paper-2:  oklch(18% 0.012 255);
+  --color-paper-3:  oklch(22% 0.014 255);
+  --color-paper-4:  oklch(26% 0.016 255);
+  --color-code-bg:  oklch(10% 0.006 255);
+
+  /* Ink — near-white, cool-tinted */
+  --color-ink:   oklch(93% 0.008 285);
+  --color-ink-2: oklch(78% 0.006 285);
+  --color-ink-3: oklch(62% 0.006 285);
+
+  /* Accent — electric cobalt */
+  --color-accent:         oklch(62% 0.16  250);
+  --color-accent-2:       oklch(52% 0.14  250);
+  --color-accent-glow:    oklch(62% 0.16 250 / 0.1);
+  --color-accent-hover:   oklch(72% 0.12  250);
+  --color-accent-border:  oklch(62% 0.16 250 / 0.15);
+
+  /* Semantic */
+  --color-rule:               oklch(28% 0.010 255);
+  --color-overlay:            oklch(0% 0 0 / 0.5);
+  --color-green:              oklch(65% 0.15  145);
+  --color-green-glow:         oklch(65% 0.15 145 / 0.1);
+  --color-green-border:       oklch(65% 0.15 145 / 0.15);
+  --color-green-border-strong: oklch(65% 0.15 145 / 0.2);
+  --color-red:                oklch(60% 0.16   25);
+  --color-orange:             oklch(70% 0.14   75);
+  --color-orange-glow:        oklch(70% 0.14 75 / 0.1);
+  --color-orange-border:      oklch(70% 0.14 75 / 0.15);
+  --color-syntax-pink:        oklch(65% 0.14 350);
+  --color-syntax-purple:      oklch(72% 0.1 285);
+
+  /* Spacing — 4pt scale */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  /* Radii — tight, technical */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Motion */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7,  0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long:  420ms;
+
+  /* Z-index */
+  --z-raised:   10;
+  --z-sticky:   200;
+  --z-modal:    400;
+  --z-toast:    500;
+}
