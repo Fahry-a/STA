@@ -3,7 +3,7 @@
  * Provides robust error handling with configurable retry strategies
  */
 
-import { delayRequest } from "./rateLimit";
+import { delayRequest } from "../rateLimit/rateLimit";
 
 /**
  * Retry options configuration interface
@@ -30,7 +30,7 @@ export async function retryWithBackoff<T>(
   const { maxRetries, initialDelay, backoffFactor, isRetryable } = options;
   let lastError: Error | undefined;
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < Math.max(1, maxRetries); attempt++) {
     try {
       return await operation();
     } catch (error: any) {

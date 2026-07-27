@@ -2,7 +2,7 @@
  * Tests for validation functionality
  */
 
-import { validateTranslationRequest } from "../../src/lib/validation";
+import { validateTranslationRequest } from "../../src/lib/providers/validation";
 
 describe("Validation Module", () => {
   describe("validateTranslationRequest", () => {

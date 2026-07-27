@@ -12,7 +12,10 @@ export const SECURITY_CONFIG = {
 
   // Rate limiting
   STRICT_RATE_LIMITING: true,
-  FAIL_SAFE_ON_ERROR: false, // Changed to false for better security
+  // When true, rate-limit failures (KV down) are fail-open so legitimate users
+  // aren't blocked during transient infrastructure issues. Set to false only
+  // if abuse during outages is a greater concern than availability.
+  FAIL_SAFE_ON_ERROR: true,
 
   // CORS settings
   CORS_ORIGINS: ["*"], // Restrict in production
@@ -28,34 +31,9 @@ export const SECURITY_CONFIG = {
   SECURITY_HEADERS: {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
-    "X-XSS-Protection": "1; mode=block",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
     "Content-Security-Policy":
       "default-src 'self'; script-src 'none'; object-src 'none';",
   },
-};
-
-/**
- * Validation patterns for different input types
- */
-export const VALIDATION_PATTERNS = {
-  // Language code validation (ISO 639-1/639-2)
-  LANGUAGE_CODE: /^[a-z]{2,3}(-[A-Z]{2})?$/,
-
-  // IP address validation
-  IPV4: /^(\d{1,3}\.){3}\d{1,3}$/,
-  IPV6: /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/,
-};
-
-/**
- * Error messages (generic to avoid information disclosure)
- */
-export const SECURITY_ERRORS = {
-  INVALID_INPUT: "Invalid input format",
-  INPUT_TOO_LONG: "Input exceeds maximum length",
-  RATE_LIMITED: "Rate limit exceeded",
-  UNAUTHORIZED: "Unauthorized access",
-  FORBIDDEN: "Access forbidden",
-  VALIDATION_FAILED: "Input validation failed",
 };

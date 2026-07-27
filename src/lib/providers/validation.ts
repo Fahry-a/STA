@@ -3,7 +3,7 @@
  * Provides comprehensive validation for translation requests
  */
 
-import { PAYLOAD_LIMITS } from "./config";
+import { PAYLOAD_LIMITS } from "../config";
 
 /**
  * Configuration constants for validation

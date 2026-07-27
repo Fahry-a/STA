@@ -20,14 +20,67 @@ export interface PerformanceMetrics {
 }
 
 /**
- * In-memory metrics storage
+ * In-memory metrics storage using a circular buffer for O(1) insertions
+ * and bounded memory usage. The head/tail pointers avoid expensive splice
+ * operations on every insert.
  */
 const metrics: PerformanceMetrics[] = [];
+let head = 0;
+let tail = 0;
+let count = 0;
 
 /**
  * Maximum number of metrics to keep in memory
  */
-const MAX_METRICS = 1000; // Keep only recent metrics
+const MAX_METRICS = 1000;
+
+/**
+ * Push a metric into the circular buffer, overwriting the oldest entry
+ * when at capacity.
+ */
+function pushMetric(entry: PerformanceMetrics): void {
+  if (count < MAX_METRICS) {
+    metrics[tail] = entry;
+    tail = (tail + 1) % MAX_METRICS;
+    count++;
+  } else {
+    metrics[tail] = entry;
+    tail = (tail + 1) % MAX_METRICS;
+    head = (head + 1) % MAX_METRICS;
+  }
+}
+
+/**
+ * Find a metric by requestId without reconstructing the full array.
+ */
+function findMetric(requestId: string): PerformanceMetrics | undefined {
+  if (count === 0) return undefined;
+  if (count < MAX_METRICS) {
+    for (let i = 0; i < count; i++) {
+      if (metrics[i].requestId === requestId) return metrics[i];
+    }
+  } else {
+    for (let i = 0; i < MAX_METRICS; i++) {
+      const idx = (head + i) % MAX_METRICS;
+      if (metrics[idx].requestId === requestId) return metrics[idx];
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Get the last n metrics without full array reconstruction.
+ */
+function getLastN(n: number): PerformanceMetrics[] {
+  if (count === 0) return [];
+  const take = Math.min(n, count);
+  const result: PerformanceMetrics[] = [];
+  for (let i = 0; i < take; i++) {
+    const idx = (tail - take + i + MAX_METRICS) % MAX_METRICS;
+    result.push(metrics[idx]);
+  }
+  return result;
+}
 
 /**
  * Start performance tracking for a request
@@ -39,7 +92,7 @@ export function startPerformanceTracking(endpoint: string): string {
   // Generate UUID in Workers-compatible way
   const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  metrics.push({
+  pushMetric({
     requestId,
     endpoint,
     startTime: Date.now(),
@@ -49,11 +102,6 @@ export function startPerformanceTracking(endpoint: string): string {
     retryCount: 0,
     success: false,
   });
-
-  // Clean up old metrics to prevent memory leaks
-  if (metrics.length > MAX_METRICS) {
-    metrics.splice(0, metrics.length - MAX_METRICS);
-  }
 
   return requestId;
 }
@@ -69,7 +117,7 @@ export function updatePerformanceMetrics(
   requestId: string,
   updates: Partial<PerformanceMetrics>
 ): void {
-  const metric = metrics.find((m) => m.requestId === requestId);
+  const metric = findMetric(requestId);
   if (metric) {
     Object.assign(metric, updates);
   }
@@ -86,7 +134,7 @@ export function endPerformanceTracking(
   requestId: string,
   success: boolean
 ): void {
-  const metric = metrics.find((m) => m.requestId === requestId);
+  const metric = findMetric(requestId);
   if (metric) {
     metric.endTime = Date.now();
     metric.duration = metric.endTime - metric.startTime;
@@ -100,9 +148,9 @@ export function endPerformanceTracking(
  * @returns Performance statistics object or null if no metrics available
  */
 export function getPerformanceStats() {
-  if (metrics.length === 0) return null;
+  if (count === 0) return null;
 
-  const recent = metrics.slice(-100); // Last 100 requests for analysis
+  const recent = getLastN(100); // Last 100 requests for analysis
   const successful = recent.filter((m) => m.success);
   const failed = recent.filter((m) => !m.success);
 

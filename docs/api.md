@@ -10,7 +10,8 @@ https://sta.oryn.my.id
 | Endpoint | Auth Required |
 |----------|--------------|
 | Translation endpoints (`/deepl`, `/google`, `/translate`, `/v2/translate`) | No |
-| Health endpoints (`/health`, `/health/live`, `/health/ready`) | No |
+| Health endpoints (`/health`, `/health/ready`) | Yes — `X-API-Key` header |
+| Liveness probe (`/health/live`) | No |
 | Admin endpoints (`/metrics`, `/admin/*`) | Yes — `X-API-Key` header |
 
 ## Translation Endpoints

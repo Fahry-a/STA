@@ -3,9 +3,9 @@
  * More accurate than fixed window, prevents burst at window boundaries
  */
 
-import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
-import { getProxyEndpoints } from "./proxyManager";
-import { logger } from "./logger";
+import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "../config";
+import { getProxyEndpoints } from "../network/proxyManager";
+import { logger } from "../observability/logger";
 
 interface WindowEntry {
   timestamp: number;
@@ -116,14 +116,29 @@ export function checkSlidingWindowRateLimit(
   const subWindowSize = effectiveConfig.windowMs / effectiveConfig.subWindows;
 
   // Get or create entries
-  let entries = windowStorage.get(key) || [];
+  const rawEntries = windowStorage.get(key);
 
-  // Cleanup old entries
-  entries = cleanupWindow(entries, effectiveConfig.windowMs);
+  let entries: WindowEntry[];
+  if (!rawEntries || rawEntries.length === 0) {
+    entries = [];
+  } else if (rawEntries.length <= 3) {
+    // Small entry list — filter inline without allocating a new function
+    const cutoff = Date.now() - effectiveConfig.windowMs;
+    entries = [];
+    for (let i = 0; i < rawEntries.length; i++) {
+      if (rawEntries[i].timestamp > cutoff) {
+        entries.push(rawEntries[i]);
+      }
+    }
+  } else {
+    // Larger entry list — use the filter helper
+    entries = cleanupWindow(rawEntries, effectiveConfig.windowMs);
+  }
 
   // Drop the key entirely when it has no live sub-windows so the Map doesn't
-  // accumulate emptied keys (a leak under high client churn).
-  if (entries.length === 0) {
+  // accumulate emptied keys (a leak under high client churn). Still store the
+  // new entry below so the first request for a key is always counted.
+  if (rawEntries && rawEntries.length > 0 && entries.length === 0) {
     windowStorage.delete(key);
   }
 
@@ -164,6 +179,8 @@ export function checkSlidingWindowRateLimit(
     entries.push({ timestamp: now, count: 1 });
     touchWindowStorage(key, entries);
   }
+  // Denied requests are not stored — avoids bloating the map with entries
+  // from clients who are already rate-limited.
 
   // Calculate reset time
   const resetMs = (currentWindowIndex + 1) * subWindowSize - now;

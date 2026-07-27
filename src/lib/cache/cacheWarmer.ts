@@ -15,8 +15,8 @@ import {
   getCachedTranslation,
   setCachedTranslation,
 } from "./cache";
-import { query } from "./query";
-import { logger } from "./logger";
+import { query } from "../providers/query";
+import { logger } from "../observability/logger";
 
 /**
  * Popular translation pairs that benefit from caching
@@ -125,7 +125,7 @@ export async function warmCache(env: any): Promise<{
 
   for (const translation of POPULAR_TRANSLATIONS) {
     try {
-      const cacheKey = await generateCacheKey(
+      const cacheKey = generateCacheKey(
         translation.text,
         translation.source_lang,
         translation.target_lang,

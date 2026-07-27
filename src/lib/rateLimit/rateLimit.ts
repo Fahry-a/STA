@@ -4,10 +4,10 @@
  * Integrates sliding window rate limiter for burst protection at window boundaries
  */
 
-import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "./config";
-import { getProxyEndpoints } from "./proxyManager";
+import { RATE_LIMIT_CONFIG, calculateDynamicRateLimits } from "../config";
+import { getProxyEndpoints } from "../network/proxyManager";
 import { checkSlidingWindowRateLimit } from "./slidingWindowRateLimit";
-import { SECURITY_CONFIG } from "./securityConfig";
+import { SECURITY_CONFIG } from "../security/securityConfig";
 
 interface RateLimitEntry {
   tokens: number;
@@ -124,9 +124,10 @@ export async function checkRateLimit(
         const existing = (await env.RATE_LIMIT_KV.get(
           key,
           "json"
-        )) as RateLimitEntry | null;
+        )) as { tokens: number; lastRefill: number; lastUpdate?: number } | null;
         if (existing) {
-          const timePassed = (now - existing.lastRefill) / 1000;
+          const lastActive = existing.lastUpdate ?? existing.lastRefill;
+          const timePassed = (now - lastActive) / 1000;
           tokens = Math.min(
             maxTokens,
             existing.tokens + timePassed * rateLimits.REFILL_RATE
@@ -148,9 +149,11 @@ export async function checkRateLimit(
       });
 
       // Async KV update
-      env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-        expirationTtl: 3600,
-      }).catch(() => {
+      env.RATE_LIMIT_KV.put(
+        key,
+        JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+        { expirationTtl: 3600 }
+      ).catch(() => {
         // KV update failed, continue silently
       });
 
@@ -168,9 +171,11 @@ export async function checkRateLimit(
     });
 
     // Async KV update
-    env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-      expirationTtl: 3600,
-    }).catch(() => {
+    env.RATE_LIMIT_KV.put(
+      key,
+      JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+      { expirationTtl: 3600 }
+    ).catch(() => {
       // KV update failed, continue silently
     });
 
@@ -208,8 +213,9 @@ function cleanupCacheIfNeeded(): void {
   // Only clean up when cache has more than 100 items to avoid frequent operations
   if (rateLimitCache.size > 100) {
     const now = Date.now();
+    const cutoff = now - CACHE_TTL * 2;
     for (const [key, entry] of rateLimitCache.entries()) {
-      if (now - entry.lastUpdate > CACHE_TTL * 2) {
+      if (entry.lastUpdate < cutoff) {
         rateLimitCache.delete(key);
       }
     }
@@ -308,9 +314,11 @@ export async function checkProxyRateLimit(
       });
 
       // Async KV update without blocking response
-      env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-        expirationTtl: 3600,
-      }).catch(() => {
+      env.RATE_LIMIT_KV.put(
+        key,
+        JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+        { expirationTtl: 3600 }
+      ).catch(() => {
         // KV update failed, continue silently
       });
 
@@ -328,9 +336,11 @@ export async function checkProxyRateLimit(
     });
 
     // Async KV update without blocking response
-    env.RATE_LIMIT_KV.put(key, JSON.stringify({ tokens, lastRefill: now }), {
-      expirationTtl: 3600,
-    }).catch(() => {
+    env.RATE_LIMIT_KV.put(
+      key,
+      JSON.stringify({ tokens, lastRefill: now, lastUpdate: now }),
+      { expirationTtl: 3600 }
+    ).catch(() => {
       // KV update failed, continue silently
     });
 

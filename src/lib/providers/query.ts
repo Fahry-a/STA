@@ -13,24 +13,24 @@ import {
   DEFAULT_RETRY_CONFIG,
   PAYLOAD_LIMITS,
   REQUEST_TIMEOUT,
-} from "./config";
-import { API_URL, REQUEST_ALTERNATIVES } from "./const";
-import { createErrorResponse } from "./errorHandler";
-import { logger } from "./logger";
+} from "../config";
+import { API_URL, REQUEST_ALTERNATIVES } from "../const";
+import { createErrorResponse } from "../observability/errorHandler";
+import { logger } from "../observability/logger";
 import {
   generateBrowserFingerprint,
   recordProxyFailure,
   recordProxySuccess,
   selectProxy,
-} from "./proxyManager";
-import { isRetryableError, RetryOptions, retryWithBackoff } from "./retryLogic";
+} from "../network/proxyManager";
+import { isRetryableError, RetryOptions, retryWithBackoff } from "../network/retryLogic";
 import {
   Config,
   createStandardResponse,
   RawResponseParams,
   RequestParams,
   ResponseParams,
-} from "./types";
+} from "../types";
 
 /**
  * Ensure language code is in uppercase format for consistent output
@@ -176,21 +176,15 @@ function getTimestamp(letterCount: number) {
     return timestamp;
   }
 
-  try {
-    const modifiedTimestamp = timestamp - (timestamp % modValue) + modValue;
+  const modifiedTimestamp = timestamp - (timestamp % modValue) + modValue;
 
-    // Validate the result is reasonable
-    if (
-      modifiedTimestamp > 0 &&
-      modifiedTimestamp <= Number.MAX_SAFE_INTEGER &&
-      modifiedTimestamp >= timestamp - 1000
-    ) {
-      // Should be close to original timestamp
-      return modifiedTimestamp;
-    }
-  } catch (error) {
-    // If any calculation fails, return original timestamp
-    console.warn("Timestamp calculation failed, using original:", error);
+  // Validate the result is reasonable
+  if (
+    modifiedTimestamp > 0 &&
+    modifiedTimestamp <= Number.MAX_SAFE_INTEGER &&
+    modifiedTimestamp >= timestamp - 1000
+  ) {
+    return modifiedTimestamp;
   }
 
   return timestamp;
@@ -235,9 +229,9 @@ function buildRequestBody(data: RequestParams) {
   };
   if (typeof globalThis !== "undefined" && debugGlobal.DEBUG_MODE) {
     if (sourceLang !== "auto") {
-      console.debug(`Source language normalized: ${sourceLang}`);
+      logger.debug(undefined, `Source language normalized: ${sourceLang}`);
     }
-    console.debug(`Target language normalized: ${targetLang}`);
+    logger.debug(undefined, `Target language normalized: ${targetLang}`);
   }
 
   const requestData = buildRequestParams(sourceLang, targetLang);
@@ -416,22 +410,6 @@ async function query(
       };
 
       const response = await makeRequest();
-
-      if (!response.ok) {
-        let errorMessage = `Request failed with status ${response.status}`;
-        try {
-          const errorText = await response.text();
-          if (errorText) {
-            errorMessage += `: ${errorText}`;
-          }
-        } catch {
-          // Ignore error when reading response body
-        }
-
-        const error = new Error(errorMessage);
-        (error as { status?: number }).status = response.status;
-        throw error;
-      }
 
       let result: RawResponseParams;
       try {

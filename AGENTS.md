@@ -43,46 +43,82 @@ src/
 ├── index.ts                    # Entry point — Hono router, all routes, cron handler
 ├── types/
 │   └── global.d.ts             # Global type declarations (Env, CacheEntry, etc.)
+├── routes/
+│   ├── translation.ts          # V1 translation route handler (DeepL + Google)
+│   ├── v2.ts                   # V2 batch translation route handler
+│   ├── admin.ts                # Admin route handlers (metrics, warm cache)
+│   ├── health.ts               # Health check route handlers
+│   └── debug.ts                # Debug route handler (request inspection)
 └── lib/
-    ├── index.ts                # Barrel export (re-exports from all modules)
-    ├── config.ts               # All tunable constants (timeout, rate limits, payload limits)
+    ├── index.ts                # Barrel — re-exports from all subfolders
+    ├── config.ts               # Tunable constants (timeout, rate limits, payload limits)
     ├── const.ts                # Immutable values (API_URL, REQUEST_ALTERNATIVES)
     ├── types.ts                # Core types + response factory functions
-    ├── env.ts                  # Environment validation utilities
-    ├── query.ts                # DeepL JSONRPC translation engine (core)
-    ├── services/
+    ├── env.ts                  # Environment validation
+    ├── textUtils.ts            # Payload size estimation and validation
+    │
+    ├── providers/              # Translation engines
+    │   ├── index.ts
+    │   ├── query.ts            # DeepL JSONRPC core
+    │   ├── v2Translate.ts      # V2 batch (APR mode)
+    │   ├── v2Validation.ts     # V2 request validation
+    │   ├── validation.ts       # V1 request validation
     │   └── googleTranslate.ts  # Google Translate integration
-    ├── v2Translate.ts          # V2 batch translation (APR mode)
-    ├── v2Validation.ts         # V2 request validation
-    ├── validation.ts           # V1 request validation
-    ├── cache.ts                # Two-level cache (LRU memory + Cloudflare KV)
-    ├── cacheWarmer.ts          # Pre-populate cache with popular translations
-    ├── rateLimit.ts            # Token bucket rate limiting (dual-level)
-    ├── slidingWindowRateLimit.ts # Sliding window burst protection
-    ├── proxyManager.ts         # Proxy selection, health tracking, fingerprinting
-    ├── retryLogic.ts           # Exponential backoff with jitter
-    ├── errorHandler.ts         # Error processing, sanitization, responses
-    ├── security.ts             # Security headers, CORS, IP validation, admin auth
-    ├── securityConfig.ts       # Security configuration constants
-    ├── logger.ts               # Structured logging → Analytics Engine
-    ├── metrics.ts              # System metrics collection
-    ├── performance.ts          # Per-request performance tracking
-    ├── healthCheck.ts          # Comprehensive health status checks
-    └── textUtils.ts            # Payload size estimation and validation
+    │
+    ├── network/                # Networking infrastructure
+    │   ├── index.ts
+    │   ├── proxyManager.ts     # Proxy selection, health tracking, fingerprinting
+    │   └── retryLogic.ts       # Exponential backoff with jitter
+    │
+    ├── security/
+    │   ├── index.ts
+    │   ├── security.ts         # Security headers, CORS, IP validation, admin auth
+    │   └── securityConfig.ts   # Security configuration constants
+    │
+    ├── rateLimit/
+    │   ├── index.ts
+    │   ├── rateLimit.ts        # Token bucket rate limiting (dual-level)
+    │   └── slidingWindowRateLimit.ts  # Sliding window burst protection
+    │
+    ├── cache/
+    │   ├── index.ts
+    │   ├── cache.ts            # Two-level cache (LRU memory + Cloudflare KV)
+    │   └── cacheWarmer.ts      # Pre-populate cache with popular translations
+    │
+    └── observability/          # Monitoring & error handling
+        ├── index.ts
+        ├── logger.ts           # Structured logging → Analytics Engine
+        ├── metrics.ts          # System metrics collection
+        ├── performance.ts      # Per-request performance tracking
+        ├── errorHandler.ts     # Error processing, sanitization, responses
+        └── healthCheck.ts      # Comprehensive health status checks
 
 tests/
 ├── setup.ts                    # Jest global setup, mock factories, custom matchers
-├── utils/
-│   └── testHelpers.ts          # Shared mock utilities
-├── lib/                        # Unit tests (one per module)
+├── index.test.ts               # App-level endpoint tests
+├── lib/                        # Unit tests (mirrors src/lib/ structure)
 │   ├── cache.test.ts
+│   ├── cacheWarmer.test.ts
+│   ├── config.test.ts
+│   ├── env.test.ts
+│   ├── errorHandler.test.ts
+│   ├── healthCheck.test.ts
+│   ├── logger.test.ts
+│   ├── metrics.test.ts
+│   ├── performance.test.ts
+│   ├── proxyManager.test.ts
 │   ├── query.test.ts
 │   ├── rateLimit.test.ts
+│   ├── retryLogic.test.ts
 │   ├── security.test.ts
+│   ├── slidingWindowRateLimit.test.ts
+│   ├── textUtils.test.ts
+│   ├── types.test.ts
 │   ├── v2Translate.test.ts
-│   ├── services/
-│   │   └── googleTranslate.test.ts
-│   └── ...
+│   ├── v2Validation.test.ts
+│   ├── validation.test.ts
+│   └── services/               (moved to providers/)
+│       └── googleTranslate.test.ts
 ├── integration/                # End-to-end integration tests
 │   ├── translation.test.ts
 │   └── multiProvider.test.ts

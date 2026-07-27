@@ -25,7 +25,6 @@ export const RATE_LIMIT_CONFIG = {
   // Base per-proxy limits
   PROXY_TOKENS_PER_SECOND: 8, // Conservative backend proxy rate limit (below 8 to prevent overload)
   PROXY_MAX_TOKENS: 16, // 2 seconds worth of burst capacity (8 * 2)
-  PROXY_REFILL_RATE: 8, // Proxy token refill rate
 
   // Dynamic client limits (calculated based on proxy count)
   BASE_TOKENS_PER_MINUTE: 480, // Fallback when no proxies available
@@ -46,14 +45,6 @@ export const PAYLOAD_LIMITS = {
   MAX_REQUEST_SIZE: 32768, // Maximum size of a request payload in bytes
   PROXY_MAX_TEXT_LENGTH: 3000, // Maximum text length allowed per proxy request
   CHUNK_SIZE: 2000, // Size of text chunks for splitting large requests
-};
-
-/**
- * Error handling and logging configuration
- */
-export const ERROR_CONFIG = {
-  LOG_SENSITIVE_DATA: false, // Never log sensitive information in production
-  INCLUDE_STACK_TRACES: false, // Include stack traces in error responses (for debugging)
 };
 
 /**

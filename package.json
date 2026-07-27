@@ -19,7 +19,7 @@
   "license": "MIT",
   "main": "src/index.ts",
   "name": "sta",
-  "private": false,
+  "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/Fahry-a/STA.git"

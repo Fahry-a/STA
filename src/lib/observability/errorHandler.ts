@@ -3,7 +3,7 @@
  * Provides standardized error processing, sanitization, and response formatting
  */
 
-import { createStandardResponse } from "./types";
+import { createStandardResponse } from "../types";
 
 /**
  * Detailed error information interface

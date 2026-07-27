@@ -33,9 +33,9 @@ export function estimatePayloadSize(
     },
   };
 
-  // Use a simple byte estimation (roughly accurate for UTF-8)
+  // Use TextEncoder for accurate UTF-8 byte count (e.g. CJK = 3 bytes/char)
   const jsonString = JSON.stringify(sampleRequest);
-  return jsonString.length * 1.2; // Add 20% buffer for formatting variations
+  return new TextEncoder().encode(jsonString).length;
 }
 
 /**

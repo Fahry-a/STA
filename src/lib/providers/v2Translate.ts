@@ -4,12 +4,12 @@
  */
 
 import { query } from "./query";
-import { type RequestParams, createV2Response } from "./types";
+import { type RequestParams, createV2Response } from "../types";
 import {
   type V2RequestParams,
   type V2ResponseParams,
   type V2TranslationResult,
-} from "./types";
+} from "../types";
 import {
   validateV2Request,
   formatCombinedText,
