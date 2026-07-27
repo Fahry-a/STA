@@ -13,6 +13,7 @@ import { handleV2Translation } from "./routes/v2";
 import { handleHealthCheck, handleLiveness, handleReadiness } from "./routes/health";
 import { handleMetrics, handleWarmCache, handleCacheStatus } from "./routes/admin";
 import { handleDebug } from "./routes/debug";
+import { handleDocs } from "./routes/docs";
 import { warmCache } from "./lib/cache/cacheWarmer";
 
 /**
@@ -113,5 +114,7 @@ app
 
   .post("/admin/warm-cache", (c) => handleWarmCache(c))
   .get("/admin/cache-status", (c) => handleCacheStatus(c))
+
+  .get("/docs", (c) => handleDocs(c))
 
   .all("*", (c) => c.redirect("https://github.com/Fahry-a/STA"));
